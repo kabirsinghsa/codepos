@@ -405,6 +405,7 @@ const Index = () => {
                     { key: 'expiry_days', value: String(expiryDays) },
                     { key: 'multi_wash_days', value: String(multiWashDays) },
                     { key: 'master_site_url', value: masterSiteUrl },
+                    { key: 'site_name', value: siteName },
                     { key: 'packages_enabled', value: String(packagesEnabled) },
                     { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
 
