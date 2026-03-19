@@ -61,6 +61,8 @@ const Index = () => {
   const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
+  const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
+  const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
 
   // Load business settings from database
   useEffect(() => {
