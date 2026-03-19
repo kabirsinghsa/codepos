@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
-import { FileText, Download, ArrowLeft, CalendarDays, Calendar } from 'lucide-react';
+import { format, getDaysInMonth } from 'date-fns';
+import { FileText, Download, ArrowLeft, CalendarDays, Calendar, Car } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,14 @@ interface WashRecord {
   created_at: string;
   total_washes: number;
   washes_used: number;
+}
+
+interface PackageWashLog {
+  id: string;
+  package_id: string;
+  vehicle_reg: string;
+  wash_type: string;
+  washed_at: string;
 }
 
 const SummaryCards = ({ records }: { records: WashRecord[] }) => {
@@ -125,6 +133,101 @@ const TransactionTable = ({ records, showDate }: { records: WashRecord[]; showDa
   </section>
 );
 
+const PackageWashReport = () => {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [logs, setLogs] = useState<PackageWashLog[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchLogs = async (monthStr: string) => {
+    setLoading(true);
+    const [year, mon] = monthStr.split('-').map(Number);
+    const start = `${monthStr}-01T00:00:00.000Z`;
+    const lastDay = getDaysInMonth(new Date(year, mon - 1));
+    const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
+    const { data } = await supabase
+      .from('package_wash_logs')
+      .select('*')
+      .gte('washed_at', start)
+      .lte('washed_at', end)
+      .order('washed_at', { ascending: false });
+    setLogs((data as PackageWashLog[]) || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchLogs(month); }, [month]);
+
+  const byVehicle = useMemo(() => {
+    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string }> = {};
+    logs.forEach(l => {
+      if (!map[l.vehicle_reg]) {
+        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at };
+      }
+      map[l.vehicle_reg].count++;
+      if (new Date(l.washed_at) > new Date(map[l.vehicle_reg].lastWash)) {
+        map[l.vehicle_reg].lastWash = l.washed_at;
+      }
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count);
+  }, [logs]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Report Month</label>
+          <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="bg-secondary border-border w-48" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="rounded-lg border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Washes</p>
+          <p className="text-3xl font-bold font-mono text-foreground mt-1">{logs.length}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Unique Vehicles</p>
+          <p className="text-3xl font-bold font-mono text-foreground mt-1">{byVehicle.length}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Avg Washes/Vehicle</p>
+          <p className="text-3xl font-bold font-mono text-primary mt-1">
+            {byVehicle.length > 0 ? (logs.length / byVehicle.length).toFixed(1) : '0'}
+          </p>
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Washes per Vehicle ({byVehicle.length})</h2>
+        <div className="rounded-lg border border-border bg-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground text-left">
+                <th className="px-4 py-3 font-medium">Registration</th>
+                <th className="px-4 py-3 font-medium">Wash Type</th>
+                <th className="px-4 py-3 font-medium">Times Washed</th>
+                <th className="px-4 py-3 font-medium">Last Wash</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byVehicle.map(v => (
+                <tr key={v.reg} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                  <td className="px-4 py-3 font-mono font-bold text-foreground">{v.reg}</td>
+                  <td className="px-4 py-3 capitalize">{v.wash_type}</td>
+                  <td className="px-4 py-3 font-mono text-primary font-bold">{v.count}</td>
+                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{format(new Date(v.lastWash), 'dd MMM yyyy HH:mm')}</td>
+                </tr>
+              ))}
+              {byVehicle.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">{loading ? 'Loading…' : 'No package washes this month'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+};
+
 const Reports = () => {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -181,7 +284,6 @@ const Reports = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Monthly daily breakdown
   const dailyBreakdown = useMemo(() => {
     const grouped: Record<string, { count: number; revenue: number; used: number }> = {};
     monthlyRecords.forEach(r => {
@@ -208,9 +310,10 @@ const Reports = () => {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full max-w-xs grid-cols-2">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
             <TabsTrigger value="daily" className="gap-2"><CalendarDays className="w-4 h-4" /> Daily</TabsTrigger>
             <TabsTrigger value="monthly" className="gap-2"><Calendar className="w-4 h-4" /> Monthly</TabsTrigger>
+            <TabsTrigger value="packages" className="gap-2"><Car className="w-4 h-4" /> Packages</TabsTrigger>
           </TabsList>
 
           {/* Daily Report */}
@@ -243,7 +346,6 @@ const Reports = () => {
             <SummaryCards records={monthlyRecords} />
             <BreakdownByType records={monthlyRecords} />
 
-            {/* Daily breakdown within the month */}
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Daily Breakdown</h2>
               <div className="rounded-lg border border-border bg-card overflow-x-auto">
@@ -274,6 +376,11 @@ const Reports = () => {
             </section>
 
             <TransactionTable records={monthlyRecords} showDate />
+          </TabsContent>
+
+          {/* Package Wash Report */}
+          <TabsContent value="packages" className="space-y-6 mt-6">
+            <PackageWashReport />
           </TabsContent>
         </Tabs>
       </main>
