@@ -363,7 +363,7 @@ const Index = () => {
                     <QRCodeSVG value="https://washcodeadmin.lovable.app/my-codes" size={120} level="M" />
                    </div>
                    <div className="space-y-2">
-                     <p className="text-xs text-muted-foreground font-mono">https://washcodesite.lovable.app/my-codes</p>
+                     <p className="text-xs text-muted-foreground font-mono">https://washcodeadmin.lovable.app/my-codes</p>
                     <p className="text-xs text-muted-foreground">Customers scan this to view their wash codes</p>
                     <Button
                       variant="outline"
