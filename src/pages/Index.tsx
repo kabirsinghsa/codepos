@@ -398,7 +398,9 @@ const Index = () => {
                     { key: 'receipt_footer', value: receiptFooter },
                     { key: 'expiry_days', value: String(expiryDays) },
                     { key: 'multi_wash_days', value: String(multiWashDays) },
-                    { key: 'master_site_url', value: masterSiteUrl }];
+                    { key: 'master_site_url', value: masterSiteUrl },
+                    { key: 'packages_enabled', value: String(packagesEnabled) },
+                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
