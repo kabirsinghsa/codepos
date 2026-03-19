@@ -283,7 +283,7 @@ const Kiosk = () => {
                 }`}
               >
                 <Car className="w-5 h-5" />
-                Monthly Package
+                Scan Reg Number
               </button>
             )}
           </div>
