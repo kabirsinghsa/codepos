@@ -79,6 +79,7 @@ const Index = () => {
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
       }
+    };
     fetchSettings();
   }, []);
 
