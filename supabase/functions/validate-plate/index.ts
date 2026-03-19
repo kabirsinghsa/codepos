@@ -53,7 +53,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Package found — start the wash
+    // Package found — log the wash
+    await supabase
+      .from('package_wash_logs')
+      .insert({
+        package_id: pkg.id,
+        vehicle_reg: cleanPlate,
+        wash_type: pkg.wash_type,
+      })
+
+    // Start the wash
     await supabase
       .from('wash_bay_status')
       .update({
