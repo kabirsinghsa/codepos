@@ -27,6 +27,7 @@ interface PackageWashLog {
   vehicle_reg: string;
   wash_type: string;
   washed_at: string;
+  site_name: string;
 }
 
 const SummaryCards = ({ records }: { records: WashRecord[] }) => {
@@ -157,14 +158,15 @@ const PackageWashReport = () => {
   useEffect(() => { fetchLogs(month); }, [month]);
 
   const byVehicle = useMemo(() => {
-    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string }> = {};
+    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string; site_name: string }> = {};
     logs.forEach(l => {
       if (!map[l.vehicle_reg]) {
-        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at };
+        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at, site_name: l.site_name || '' };
       }
       map[l.vehicle_reg].count++;
       if (new Date(l.washed_at) > new Date(map[l.vehicle_reg].lastWash)) {
         map[l.vehicle_reg].lastWash = l.washed_at;
+        map[l.vehicle_reg].site_name = l.site_name || '';
       }
     });
     return Object.values(map).sort((a, b) => b.count - a.count);
@@ -204,6 +206,7 @@ const PackageWashReport = () => {
               <tr className="border-b border-border text-muted-foreground text-left">
                 <th className="px-4 py-3 font-medium">Registration</th>
                 <th className="px-4 py-3 font-medium">Wash Type</th>
+                <th className="px-4 py-3 font-medium">Site</th>
                 <th className="px-4 py-3 font-medium">Times Washed</th>
                 <th className="px-4 py-3 font-medium">Last Wash</th>
               </tr>
@@ -213,12 +216,13 @@ const PackageWashReport = () => {
                 <tr key={v.reg} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="px-4 py-3 font-mono font-bold text-foreground">{v.reg}</td>
                   <td className="px-4 py-3 capitalize">{v.wash_type}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{v.site_name || '—'}</td>
                   <td className="px-4 py-3 font-mono text-primary font-bold">{v.count}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{format(new Date(v.lastWash), 'dd MMM yyyy HH:mm')}</td>
                 </tr>
               ))}
               {byVehicle.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">{loading ? 'Loading…' : 'No package washes this month'}</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{loading ? 'Loading…' : 'No package washes this month'}</td></tr>
               )}
             </tbody>
           </table>

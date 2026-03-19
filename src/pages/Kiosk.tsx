@@ -50,6 +50,7 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -65,6 +66,7 @@ const Kiosk = () => {
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
+          if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
         });
       }
@@ -110,7 +112,7 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate },
+        body: { plate, site_name: siteName },
       });
 
       if (error || !data?.valid) {

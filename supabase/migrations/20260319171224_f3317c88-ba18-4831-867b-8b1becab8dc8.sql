@@ -1,0 +1,1 @@
+ALTER TABLE public.package_wash_logs ADD COLUMN site_name text NOT NULL DEFAULT '';

@@ -58,6 +58,7 @@ const Index = () => {
   const [isMultiWash, setIsMultiWash] = useState(false);
   const [washQuantity, setWashQuantity] = useState(5);
   const [masterSiteUrl, setMasterSiteUrl] = useState('');
+  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
@@ -75,6 +76,7 @@ const Index = () => {
           if (row.key === 'expiry_days') setExpiryDays(Number(row.value) || 1);
           if (row.key === 'multi_wash_days') setMultiWashDays(Number(row.value) || 30);
           if (row.key === 'master_site_url') setMasterSiteUrl(row.value);
+          if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
@@ -332,10 +334,14 @@ const Index = () => {
                 <label className="text-xs text-muted-foreground mb-1 block">Multi-Wash Expiry (days)</label>
                 <Input type="number" min={1} value={multiWashDays} onChange={(e) => setMultiWashDays(Number(e.target.value) || 1)} className="bg-secondary border-border" />
               </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs text-muted-foreground mb-1 block">Master Site URL (for cross-site package sharing)</label>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Site Name</label>
+                <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} placeholder="e.g. Main Branch, CBD, Mall" className="bg-secondary border-border" />
+                <p className="text-xs text-muted-foreground mt-1">Identifies this location in package wash reports</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Master Site URL (cross-site packages)</label>
                 <Input value={masterSiteUrl} onChange={(e) => setMasterSiteUrl(e.target.value)} placeholder="https://vpjjzekbtpagjaauxood.supabase.co" className="bg-secondary border-border" />
-                <p className="text-xs text-muted-foreground mt-1">Leave empty if this is the master site. Set on remote sites to enable cross-site multi-wash packages.</p>
               </div>
               <div className="sm:col-span-2 mt-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Features</h3>
@@ -399,6 +405,7 @@ const Index = () => {
                     { key: 'expiry_days', value: String(expiryDays) },
                     { key: 'multi_wash_days', value: String(multiWashDays) },
                     { key: 'master_site_url', value: masterSiteUrl },
+                    { key: 'site_name', value: siteName },
                     { key: 'packages_enabled', value: String(packagesEnabled) },
                     { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
 
