@@ -360,7 +360,7 @@ const Index = () => {
                 <label className="text-xs text-muted-foreground mb-2 block">Customer Portal QR Code (print & display for customers)</label>
                 <div className="flex items-center gap-4">
                   <div data-mycodes-qr className="p-3 rounded-lg bg-white inline-block">
-                    <QRCodeSVG value="https://washcodesite.lovable.app/my-codes" size={120} level="M" />
+                    <QRCodeSVG value="https://washcodeadmin.lovable.app/my-codes" size={120} level="M" />
                    </div>
                    <div className="space-y-2">
                      <p className="text-xs text-muted-foreground font-mono">https://washcodesite.lovable.app/my-codes</p>
