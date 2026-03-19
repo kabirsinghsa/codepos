@@ -170,6 +170,51 @@ export type Database = {
         }
         Relationships: []
       }
+      wash_packages: {
+        Row: {
+          active: boolean
+          created_at: string
+          customer_phone: string
+          end_date: string
+          id: string
+          price: number
+          start_date: string
+          updated_at: string
+          vehicle_colour: string
+          vehicle_make: string
+          vehicle_reg: string
+          wash_type: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          customer_phone?: string
+          end_date: string
+          id?: string
+          price?: number
+          start_date?: string
+          updated_at?: string
+          vehicle_colour?: string
+          vehicle_make?: string
+          vehicle_reg: string
+          wash_type?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          customer_phone?: string
+          end_date?: string
+          id?: string
+          price?: number
+          start_date?: string
+          updated_at?: string
+          vehicle_colour?: string
+          vehicle_make?: string
+          vehicle_reg?: string
+          wash_type?: string
+        }
+        Relationships: []
+      }
       wash_prices: {
         Row: {
           description: string
