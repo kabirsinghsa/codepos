@@ -15,6 +15,7 @@ import WashPricing from "./pages/WashPricing";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import MyCodes from "./pages/MyCodes";
+import Packages from "./pages/Packages";
 
 const queryClient = new QueryClient();
 
