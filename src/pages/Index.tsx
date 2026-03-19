@@ -61,6 +61,8 @@ const Index = () => {
   const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
+  const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
+  const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
 
   // Load business settings from database
   useEffect(() => {
@@ -79,6 +81,8 @@ const Index = () => {
           if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
+          if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
+          if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
         });
       }
     };
@@ -356,6 +360,19 @@ const Index = () => {
                 </div>
               </div>
               <div className="sm:col-span-2 mt-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Prices (Monthly)</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Ultimate Wash Exterior (R)</label>
+                    <Input type="number" min={0} value={packageExteriorPrice} onChange={(e) => setPackageExteriorPrice(e.target.value)} className="font-mono bg-secondary border-border" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Ultimate Wash with Interior (R)</label>
+                    <Input type="number" min={0} value={packageInteriorPrice} onChange={(e) => setPackageInteriorPrice(e.target.value)} className="font-mono bg-secondary border-border" />
+                  </div>
+                </div>
+              </div>
+              <div className="sm:col-span-2 mt-2">
                 <label className="text-xs text-muted-foreground mb-2 block">Customer Portal QR Code (print & display for customers)</label>
                 <div className="flex items-center gap-4">
                   <div data-mycodes-qr className="p-3 rounded-lg bg-white inline-block">
@@ -400,7 +417,9 @@ const Index = () => {
                     { key: 'master_site_url', value: masterSiteUrl },
                     { key: 'site_name', value: siteName },
                     { key: 'packages_enabled', value: String(packagesEnabled) },
-                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
+                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) },
+                    { key: 'package_exterior_price', value: packageExteriorPrice },
+                    { key: 'package_interior_price', value: packageInteriorPrice }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);

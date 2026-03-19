@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Plus, Car, ArrowLeft, Trash2, Droplets } from 'lucide-react';
+import { Loader2, Plus, Car, ArrowLeft, Trash2 } from 'lucide-react';
 import Footer from '@/components/Footer';
 
 interface WashPackage {
@@ -25,11 +25,9 @@ interface WashPackage {
   created_at: string;
 }
 
-const WASH_TYPES = [
-  { id: 'basic', label: 'Basic Wash' },
-  { id: 'standard', label: 'Standard Wash' },
-  { id: 'premium', label: 'Premium Wash' },
-  { id: 'ultimate', label: 'Ultimate Wash' },
+const PACKAGE_TYPES = [
+  { id: 'ultimate_exterior', label: 'Ultimate Wash Exterior' },
+  { id: 'ultimate_interior', label: 'Ultimate Wash with Interior' },
 ];
 
 const DURATION_OPTIONS = [
@@ -52,10 +50,15 @@ const Packages = () => {
   const [vehicleMake, setVehicleMake] = useState('');
   const [vehicleColour, setVehicleColour] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [washType, setWashType] = useState('basic');
-  const [price, setPrice] = useState(0);
+  const [packageType, setPackageType] = useState('ultimate_exterior');
   const [duration, setDuration] = useState(30);
-  const [dbPrices, setDbPrices] = useState<Record<string, number>>({});
+
+  // Admin-set prices
+  const [exteriorPrice, setExteriorPrice] = useState(500);
+  const [interiorPrice, setInteriorPrice] = useState(800);
+
+  const monthlyPrice = packageType === 'ultimate_exterior' ? exteriorPrice : interiorPrice;
+  const totalPrice = monthlyPrice * (duration / 30);
 
   const fetchPackages = useCallback(async () => {
     const { data, error } = await supabase
@@ -74,26 +77,22 @@ const Packages = () => {
     fetchPackages();
   }, [fetchPackages]);
 
+  // Fetch admin-configured package prices
   useEffect(() => {
     const fetchPrices = async () => {
       const { data } = await supabase
-        .from('wash_prices')
-        .select('wash_type, price')
-        .eq('vehicle_type', 'small_medium');
+        .from('business_settings')
+        .select('key, value')
+        .in('key', ['package_exterior_price', 'package_interior_price']);
       if (data) {
-        const map: Record<string, number> = {};
-        data.forEach((r: any) => { map[r.wash_type] = Number(r.price); });
-        setDbPrices(map);
-        setPrice(map['basic'] ?? 0);
+        data.forEach((row: any) => {
+          if (row.key === 'package_exterior_price') setExteriorPrice(Number(row.value) || 500);
+          if (row.key === 'package_interior_price') setInteriorPrice(Number(row.value) || 800);
+        });
       }
     };
     fetchPrices();
   }, []);
-
-  const handleWashTypeChange = (type: string) => {
-    setWashType(type);
-    setPrice(dbPrices[type] ?? 0);
-  };
 
   const handleCreate = async () => {
     if (!vehicleReg.trim()) {
@@ -110,8 +109,8 @@ const Packages = () => {
         vehicle_make: vehicleMake.trim(),
         vehicle_colour: vehicleColour.trim(),
         customer_phone: customerPhone.trim(),
-        wash_type: washType,
-        price: price * (duration / 30), // Price per month × months
+        wash_type: packageType,
+        price: totalPrice,
         start_date: new Date().toISOString(),
         end_date: endDate.toISOString(),
       } as any);
@@ -143,6 +142,9 @@ const Packages = () => {
     }
   };
 
+  const getPackageLabel = (type: string) =>
+    PACKAGE_TYPES.find((p) => p.id === type)?.label || type;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -162,18 +164,40 @@ const Packages = () => {
             <Car className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">Monthly Wash Packages</h1>
+            <h1 className="text-lg font-bold text-foreground">Unlimited Wash Packages</h1>
             <p className="text-xs text-muted-foreground">Time-based packages with plate recognition</p>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+        {/* Package Tier Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {PACKAGE_TYPES.map((tier) => {
+            const mp = tier.id === 'ultimate_exterior' ? exteriorPrice : interiorPrice;
+            const isSelected = packageType === tier.id;
+            return (
+              <Card
+                key={tier.id}
+                className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'}`}
+                onClick={() => setPackageType(tier.id)}
+              >
+                <CardContent className="p-5 text-center space-y-2">
+                  <Car className={`w-8 h-8 mx-auto ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <h3 className="font-bold text-foreground">{tier.label}</h3>
+                  <p className="text-2xl font-bold text-primary">R{mp.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                  <p className="text-xs text-muted-foreground">♾️ Unlimited washes included</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
         {/* Create Package Form */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Create New Package
+              Create New Package — {getPackageLabel(packageType)}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -206,7 +230,7 @@ const Packages = () => {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Customer Phone</label>
                 <Input
@@ -215,19 +239,6 @@ const Packages = () => {
                   placeholder="0812345678"
                   className="font-mono bg-secondary border-border"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Wash Type</label>
-                <Select value={washType} onValueChange={handleWashTypeChange}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WASH_TYPES.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>{w.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Duration</label>
@@ -246,17 +257,15 @@ const Packages = () => {
                 <label className="text-xs text-muted-foreground mb-1 block">Total Price (R)</label>
                 <Input
                   type="number"
-                  min={0}
-                  value={price * (duration / 30)}
-                  onChange={(e) => setPrice(Math.max(0, parseFloat(e.target.value) || 0) / (duration / 30))}
+                  value={totalPrice.toFixed(2)}
                   className="font-mono bg-secondary border-border"
-                  disabled={!isAdmin}
+                  disabled
                 />
               </div>
             </div>
             <Button onClick={handleCreate} disabled={creating} className="gap-2">
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Create Package — R{(price * (duration / 30)).toFixed(2)}
+              Create Package — R{totalPrice.toFixed(2)}
             </Button>
           </CardContent>
         </Card>
@@ -287,7 +296,7 @@ const Packages = () => {
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
                         {pkg.vehicle_make && <p>{pkg.vehicle_make} — {pkg.vehicle_colour}</p>}
-                        <p className="capitalize">{pkg.wash_type} Wash • R{Number(pkg.price).toFixed(2)}</p>
+                        <p>{getPackageLabel(pkg.wash_type)} • R{Number(pkg.price).toFixed(2)}</p>
                         <p className="text-xs font-medium text-primary">♾️ Unlimited washes included</p>
                         <p>
                           {new Date(pkg.start_date).toLocaleDateString()} → {new Date(pkg.end_date).toLocaleDateString()}
