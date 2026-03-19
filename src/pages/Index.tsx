@@ -520,22 +520,8 @@ const Index = () => {
               </button>
             )}
           </div>
-          {isMultiWash && (
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3">
-              <label className="text-xs text-muted-foreground">Number of washes:</label>
-              <Input
-                type="number"
-                min={2}
-                max={50}
-                value={washQuantity}
-                onChange={(e) => setWashQuantity(Math.max(2, parseInt(e.target.value) || 2))}
-                className="w-20 font-mono bg-secondary border-border"
-              />
-              <span className="text-sm font-mono text-primary font-bold">
-                Total: R{(totalPrice * washQuantity).toFixed(2)}
-              </span>
-            </div>
-          )}
+
+
 
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Select Wash Type</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
