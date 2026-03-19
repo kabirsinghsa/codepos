@@ -50,6 +50,7 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
