@@ -58,6 +58,8 @@ const Index = () => {
   const [isMultiWash, setIsMultiWash] = useState(false);
   const [washQuantity, setWashQuantity] = useState(5);
   const [masterSiteUrl, setMasterSiteUrl] = useState('');
+  const [packagesEnabled, setPackagesEnabled] = useState(false);
+  const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
   // Load business settings from database
   useEffect(() => {
