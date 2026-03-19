@@ -288,6 +288,7 @@ const Packages = () => {
                       <div className="text-sm text-muted-foreground space-y-1">
                         {pkg.vehicle_make && <p>{pkg.vehicle_make} — {pkg.vehicle_colour}</p>}
                         <p className="capitalize">{pkg.wash_type} Wash • R{Number(pkg.price).toFixed(2)}</p>
+                        <p className="text-xs font-medium text-primary">♾️ Unlimited washes included</p>
                         <p>
                           {new Date(pkg.start_date).toLocaleDateString()} → {new Date(pkg.end_date).toLocaleDateString()}
                         </p>
