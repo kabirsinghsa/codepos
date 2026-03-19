@@ -75,7 +75,8 @@ const Index = () => {
           if (row.key === 'expiry_days') setExpiryDays(Number(row.value) || 1);
           if (row.key === 'multi_wash_days') setMultiWashDays(Number(row.value) || 30);
           if (row.key === 'master_site_url') setMasterSiteUrl(row.value);
-        });
+          if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
+          if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
       }
     };
     fetchSettings();
