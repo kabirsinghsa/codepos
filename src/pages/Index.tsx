@@ -58,6 +58,8 @@ const Index = () => {
   const [isMultiWash, setIsMultiWash] = useState(false);
   const [washQuantity, setWashQuantity] = useState(5);
   const [masterSiteUrl, setMasterSiteUrl] = useState('');
+  const [packagesEnabled, setPackagesEnabled] = useState(false);
+  const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
   // Load business settings from database
   useEffect(() => {
@@ -73,6 +75,8 @@ const Index = () => {
           if (row.key === 'expiry_days') setExpiryDays(Number(row.value) || 1);
           if (row.key === 'multi_wash_days') setMultiWashDays(Number(row.value) || 30);
           if (row.key === 'master_site_url') setMasterSiteUrl(row.value);
+          if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
+          if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
       }
     };
@@ -275,9 +279,11 @@ const Index = () => {
             <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
-              <Car className="w-5 h-5" />
-            </button>
+            {packagesEnabled && (
+              <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
+                <Car className="w-5 h-5" />
+              </button>
+            )}
             {isAdmin &&
             <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Settings">
                 <Settings className="w-5 h-5" />
@@ -332,6 +338,25 @@ const Index = () => {
                 <p className="text-xs text-muted-foreground mt-1">Leave empty if this is the master site. Set on remote sites to enable cross-site multi-wash packages.</p>
               </div>
               <div className="sm:col-span-2 mt-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Features</h3>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={packagesEnabled} onChange={(e) => setPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
+                    <div>
+                      <span className="text-sm font-medium text-foreground">Monthly Wash Packages</span>
+                      <p className="text-xs text-muted-foreground">Enable time-based packages tied to vehicle registration</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={unlimitedPackagesEnabled} onChange={(e) => setUnlimitedPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" disabled={!packagesEnabled} />
+                    <div>
+                      <span className={`text-sm font-medium ${packagesEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>Unlimited Washes</span>
+                      <p className="text-xs text-muted-foreground">Package holders get unlimited washes for the duration</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <div className="sm:col-span-2 mt-2">
                 <label className="text-xs text-muted-foreground mb-2 block">Customer Portal QR Code (print & display for customers)</label>
                 <div className="flex items-center gap-4">
                   <div data-mycodes-qr className="p-3 rounded-lg bg-white inline-block">
@@ -373,7 +398,9 @@ const Index = () => {
                     { key: 'receipt_footer', value: receiptFooter },
                     { key: 'expiry_days', value: String(expiryDays) },
                     { key: 'multi_wash_days', value: String(multiWashDays) },
-                    { key: 'master_site_url', value: masterSiteUrl }];
+                    { key: 'master_site_url', value: masterSiteUrl },
+                    { key: 'packages_enabled', value: String(packagesEnabled) },
+                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
