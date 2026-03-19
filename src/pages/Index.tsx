@@ -58,6 +58,7 @@ const Index = () => {
   const [isMultiWash, setIsMultiWash] = useState(false);
   const [washQuantity, setWashQuantity] = useState(5);
   const [masterSiteUrl, setMasterSiteUrl] = useState('');
+  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
