@@ -29,6 +29,38 @@ export type Database = {
         }
         Relationships: []
       }
+      package_wash_logs: {
+        Row: {
+          id: string
+          package_id: string
+          vehicle_reg: string
+          wash_type: string
+          washed_at: string
+        }
+        Insert: {
+          id?: string
+          package_id: string
+          vehicle_reg: string
+          wash_type?: string
+          washed_at?: string
+        }
+        Update: {
+          id?: string
+          package_id?: string
+          vehicle_reg?: string
+          wash_type?: string
+          washed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_wash_logs_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "wash_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           approved: boolean
