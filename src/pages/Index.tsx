@@ -275,6 +275,9 @@ const Index = () => {
             <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
           </div>
           <div className="ml-auto flex items-center gap-4">
+            <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
+              <Car className="w-5 h-5" />
+            </button>
             {isAdmin &&
             <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Settings">
                 <Settings className="w-5 h-5" />
