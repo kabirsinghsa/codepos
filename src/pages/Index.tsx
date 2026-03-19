@@ -351,7 +351,7 @@ const Index = () => {
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Features</h3>
                 <div className="space-y-3">
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={unlimitedPackagesEnabled} onChange={(e) => setUnlimitedPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" disabled={!packagesEnabled} />
+                    <input type="checkbox" checked={unlimitedPackagesEnabled} onChange={(e) => setUnlimitedPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
                     <div>
                       <span className={`text-sm font-medium ${packagesEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>Unlimited Washes</span>
                       <p className="text-xs text-muted-foreground">Package holders get unlimited washes for the duration</p>
