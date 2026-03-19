@@ -216,6 +216,7 @@ const PackageWashReport = () => {
                 <tr key={v.reg} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="px-4 py-3 font-mono font-bold text-foreground">{v.reg}</td>
                   <td className="px-4 py-3 capitalize">{v.wash_type}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{v.site_name || '—'}</td>
                   <td className="px-4 py-3 font-mono text-primary font-bold">{v.count}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{format(new Date(v.lastWash), 'dd MMM yyyy HH:mm')}</td>
                 </tr>
