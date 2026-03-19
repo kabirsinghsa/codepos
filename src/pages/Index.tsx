@@ -501,7 +501,7 @@ const Index = () => {
 
           {/* Wash Package Type */}
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Wash Package</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <button
               onClick={() => setIsMultiWash(false)}
               className={`rounded-lg border p-3 text-center transition-all ${
@@ -524,6 +524,16 @@ const Index = () => {
               <span className="text-sm font-medium block">Monthly Package</span>
               <span className="text-xs opacity-70">{multiWashDays}-day expiry</span>
             </button>
+            {unlimitedPackagesEnabled && (
+              <button
+                onClick={() => navigate('/packages')}
+                className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center transition-all hover:bg-primary/10 hover:border-primary"
+              >
+                <Car className="w-4 h-4 mx-auto mb-1 text-primary" />
+                <span className="text-sm font-medium block text-primary">Unlimited</span>
+                <span className="text-xs text-muted-foreground">♾️ Plate-based</span>
+              </button>
+            )}
           </div>
           {isMultiWash && (
             <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3">
