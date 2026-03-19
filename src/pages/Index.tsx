@@ -501,28 +501,13 @@ const Index = () => {
 
           {/* Wash Package Type */}
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Wash Package</h2>
-          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <button
-              onClick={() => setIsMultiWash(false)}
-              className={`rounded-lg border p-3 text-center transition-all ${
-                !isMultiWash
-                  ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                  : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground'
-              }`}
+              onClick={() => { setIsMultiWash(false); }}
+              className="rounded-lg border p-3 text-center transition-all border-primary bg-primary/10 text-primary ring-1 ring-primary/30"
             >
               <span className="text-sm font-medium block">Single Wash</span>
               <span className="text-xs opacity-70">{expiryDays} day{expiryDays !== 1 ? 's' : ''} expiry</span>
-            </button>
-            <button
-              onClick={() => setIsMultiWash(true)}
-              className={`rounded-lg border p-3 text-center transition-all ${
-                isMultiWash
-                  ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                  : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground'
-              }`}
-            >
-              <span className="text-sm font-medium block">Monthly Package</span>
-              <span className="text-xs opacity-70">{multiWashDays}-day expiry</span>
             </button>
             {unlimitedPackagesEnabled && (
               <button
