@@ -158,14 +158,15 @@ const PackageWashReport = () => {
   useEffect(() => { fetchLogs(month); }, [month]);
 
   const byVehicle = useMemo(() => {
-    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string }> = {};
+    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string; site_name: string }> = {};
     logs.forEach(l => {
       if (!map[l.vehicle_reg]) {
-        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at };
+        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at, site_name: l.site_name || '' };
       }
       map[l.vehicle_reg].count++;
       if (new Date(l.washed_at) > new Date(map[l.vehicle_reg].lastWash)) {
         map[l.vehicle_reg].lastWash = l.washed_at;
+        map[l.vehicle_reg].site_name = l.site_name || '';
       }
     });
     return Object.values(map).sort((a, b) => b.count - a.count);
