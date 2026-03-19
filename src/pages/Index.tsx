@@ -360,10 +360,10 @@ const Index = () => {
                 <label className="text-xs text-muted-foreground mb-2 block">Customer Portal QR Code (print & display for customers)</label>
                 <div className="flex items-center gap-4">
                   <div data-mycodes-qr className="p-3 rounded-lg bg-white inline-block">
-                    <QRCodeSVG value="https://washcodesite.lovable.app/my-codes" size={120} level="M" />
+                    <QRCodeSVG value="https://washcodeadmin.lovable.app/my-codes" size={120} level="M" />
                    </div>
                    <div className="space-y-2">
-                     <p className="text-xs text-muted-foreground font-mono">https://washcodesite.lovable.app/my-codes</p>
+                     <p className="text-xs text-muted-foreground font-mono">https://washcodeadmin.lovable.app/my-codes</p>
                     <p className="text-xs text-muted-foreground">Customers scan this to view their wash codes</p>
                     <Button
                       variant="outline"
@@ -373,7 +373,7 @@ const Index = () => {
                         const printWindow = window.open('', '_blank', 'width=500,height=600');
                         if (!printWindow) return;
                         const qrEl = document.querySelector('[data-mycodes-qr]')?.innerHTML || '';
-                        printWindow.document.write(`<!DOCTYPE html><html><head><title>Scan to View Your Wash Codes</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px;text-align:center}.title{font-size:24px;font-weight:bold;margin-bottom:8px}.subtitle{font-size:14px;color:#666;margin-bottom:32px}.qr-box{padding:24px;border:3px solid #000;border-radius:16px;display:inline-block;margin-bottom:24px}.qr-box svg{width:200px;height:200px}.url{font-size:12px;color:#999;margin-top:16px}@media print{body{padding:20px}}</style></head><body><div class="title">${businessName}</div><div class="subtitle">Scan to view your wash codes</div><div class="qr-box">${qrEl}</div><div class="url">https://washcodesite.lovable.app/my-codes</div></body></html>`);
+                        printWindow.document.write(`<!DOCTYPE html><html><head><title>Scan to View Your Wash Codes</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px;text-align:center}.title{font-size:24px;font-weight:bold;margin-bottom:8px}.subtitle{font-size:14px;color:#666;margin-bottom:32px}.qr-box{padding:24px;border:3px solid #000;border-radius:16px;display:inline-block;margin-bottom:24px}.qr-box svg{width:200px;height:200px}.url{font-size:12px;color:#999;margin-top:16px}@media print{body{padding:20px}}</style></head><body><div class="title">${businessName}</div><div class="subtitle">Scan to view your wash codes</div><div class="qr-box">${qrEl}</div><div class="url">https://washcodeadmin.lovable.app/my-codes</div></body></html>`);
                         printWindow.document.close();
                         printWindow.focus();
                         printWindow.print();
