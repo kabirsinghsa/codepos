@@ -417,7 +417,9 @@ const Index = () => {
                     { key: 'master_site_url', value: masterSiteUrl },
                     { key: 'site_name', value: siteName },
                     { key: 'packages_enabled', value: String(packagesEnabled) },
-                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) }];
+                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) },
+                    { key: 'package_exterior_price', value: packageExteriorPrice },
+                    { key: 'package_interior_price', value: packageInteriorPrice }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
