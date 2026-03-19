@@ -206,6 +206,7 @@ const PackageWashReport = () => {
               <tr className="border-b border-border text-muted-foreground text-left">
                 <th className="px-4 py-3 font-medium">Registration</th>
                 <th className="px-4 py-3 font-medium">Wash Type</th>
+                <th className="px-4 py-3 font-medium">Site</th>
                 <th className="px-4 py-3 font-medium">Times Washed</th>
                 <th className="px-4 py-3 font-medium">Last Wash</th>
               </tr>
