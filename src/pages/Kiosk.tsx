@@ -50,6 +50,7 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
@@ -60,8 +61,13 @@ const Kiosk = () => {
   const [packageInfo, setPackageInfo] = useState<{ vehicle_reg?: string; days_remaining?: number } | null>(null);
 
   useEffect(() => {
-    supabase.from('business_settings').select('key, value').eq('key', 'business_name').single().then(({ data }) => {
-      if (data?.value) setBusinessName(data.value);
+    supabase.from('business_settings').select('key, value').then(({ data }) => {
+      if (data) {
+        data.forEach((row: any) => {
+          if (row.key === 'business_name') setBusinessName(row.value);
+          if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
+        });
+      }
     });
   }, []);
 
@@ -265,17 +271,19 @@ const Kiosk = () => {
               <QrCode className="w-5 h-5" />
               Scan QR Code
             </button>
-            <button
-              onClick={() => setMode('plate')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                mode === 'plate'
-                  ? 'bg-primary text-primary-foreground shadow-lg'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Car className="w-5 h-5" />
-              Monthly Package
-            </button>
+            {packagesEnabled && (
+              <button
+                onClick={() => setMode('plate')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+                  mode === 'plate'
+                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Car className="w-5 h-5" />
+                Monthly Package
+              </button>
+            )}
           </div>
         )}
 
