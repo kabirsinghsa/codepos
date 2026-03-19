@@ -112,7 +112,7 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate },
+        body: { plate, site_name: siteName },
       });
 
       if (error || !data?.valid) {
