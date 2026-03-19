@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Printer } from 'lucide-react';
+import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Printer, Car } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -407,6 +407,15 @@ const Index = () => {
                   
                     <Users className="w-4 h-4" />
                     Manage Users
+                  </Button>
+                  <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => navigate('/packages')}>
+                  
+                    <Car className="w-4 h-4" />
+                    Wash Packages
                   </Button>
                   <Button
                   variant="outline"
