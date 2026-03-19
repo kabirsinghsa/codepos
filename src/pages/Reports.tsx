@@ -27,6 +27,7 @@ interface PackageWashLog {
   vehicle_reg: string;
   wash_type: string;
   washed_at: string;
+  site_name: string;
 }
 
 const SummaryCards = ({ records }: { records: WashRecord[] }) => {
