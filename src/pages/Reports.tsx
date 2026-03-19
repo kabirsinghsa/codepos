@@ -138,24 +138,35 @@ const PackageWashReport = () => {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [logs, setLogs] = useState<PackageWashLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [siteName, setSiteName] = useState('');
 
-  const fetchLogs = async (monthStr: string) => {
+  useEffect(() => {
+    supabase.from('business_settings').select('key, value').eq('key', 'site_name').then(({ data }) => {
+      if (data && data.length > 0) setSiteName(data[0].value);
+    });
+  }, []);
+
+  const fetchLogs = async (monthStr: string, site: string) => {
     setLoading(true);
     const [year, mon] = monthStr.split('-').map(Number);
     const start = `${monthStr}-01T00:00:00.000Z`;
     const lastDay = getDaysInMonth(new Date(year, mon - 1));
     const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
-    const { data } = await supabase
+    let query = supabase
       .from('package_wash_logs')
       .select('*')
       .gte('washed_at', start)
       .lte('washed_at', end)
       .order('washed_at', { ascending: false });
+    if (site) {
+      query = query.eq('site_name', site);
+    }
+    const { data } = await query;
     setLogs((data as PackageWashLog[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchLogs(month); }, [month]);
+  useEffect(() => { fetchLogs(month, siteName); }, [month, siteName]);
 
   const byVehicle = useMemo(() => {
     const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string; site_name: string }> = {};
