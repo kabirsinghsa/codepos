@@ -501,28 +501,13 @@ const Index = () => {
 
           {/* Wash Package Type */}
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Wash Package</h2>
-          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <button
-              onClick={() => setIsMultiWash(false)}
-              className={`rounded-lg border p-3 text-center transition-all ${
-                !isMultiWash
-                  ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                  : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground'
-              }`}
+              onClick={() => { setIsMultiWash(false); }}
+              className="rounded-lg border p-3 text-center transition-all border-primary bg-primary/10 text-primary ring-1 ring-primary/30"
             >
               <span className="text-sm font-medium block">Single Wash</span>
               <span className="text-xs opacity-70">{expiryDays} day{expiryDays !== 1 ? 's' : ''} expiry</span>
-            </button>
-            <button
-              onClick={() => setIsMultiWash(true)}
-              className={`rounded-lg border p-3 text-center transition-all ${
-                isMultiWash
-                  ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                  : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground'
-              }`}
-            >
-              <span className="text-sm font-medium block">Monthly Package</span>
-              <span className="text-xs opacity-70">{multiWashDays}-day expiry</span>
             </button>
             {unlimitedPackagesEnabled && (
               <button
@@ -535,22 +520,8 @@ const Index = () => {
               </button>
             )}
           </div>
-          {isMultiWash && (
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3">
-              <label className="text-xs text-muted-foreground">Number of washes:</label>
-              <Input
-                type="number"
-                min={2}
-                max={50}
-                value={washQuantity}
-                onChange={(e) => setWashQuantity(Math.max(2, parseInt(e.target.value) || 2))}
-                className="w-20 font-mono bg-secondary border-border"
-              />
-              <span className="text-sm font-mono text-primary font-bold">
-                Total: R{(totalPrice * washQuantity).toFixed(2)}
-              </span>
-            </div>
-          )}
+
+
 
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Select Wash Type</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
