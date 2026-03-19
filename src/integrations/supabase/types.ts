@@ -33,6 +33,7 @@ export type Database = {
         Row: {
           id: string
           package_id: string
+          site_name: string
           vehicle_reg: string
           wash_type: string
           washed_at: string
@@ -40,6 +41,7 @@ export type Database = {
         Insert: {
           id?: string
           package_id: string
+          site_name?: string
           vehicle_reg: string
           wash_type?: string
           washed_at?: string
@@ -47,6 +49,7 @@ export type Database = {
         Update: {
           id?: string
           package_id?: string
+          site_name?: string
           vehicle_reg?: string
           wash_type?: string
           washed_at?: string
