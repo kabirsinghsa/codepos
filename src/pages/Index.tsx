@@ -81,6 +81,8 @@ const Index = () => {
           if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
+          if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
+          if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
         });
       }
     };
