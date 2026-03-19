@@ -271,17 +271,19 @@ const Kiosk = () => {
               <QrCode className="w-5 h-5" />
               Scan QR Code
             </button>
-            <button
-              onClick={() => setMode('plate')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                mode === 'plate'
-                  ? 'bg-primary text-primary-foreground shadow-lg'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Car className="w-5 h-5" />
-              Monthly Package
-            </button>
+            {packagesEnabled && (
+              <button
+                onClick={() => setMode('plate')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+                  mode === 'plate'
+                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Car className="w-5 h-5" />
+                Monthly Package
+              </button>
+            )}
           </div>
         )}
 
