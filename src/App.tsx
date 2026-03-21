@@ -16,6 +16,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import MyCodes from "./pages/MyCodes";
 import Packages from "./pages/Packages";
+import Install from "./pages/Install";
 
 const queryClient = new QueryClient();
 
