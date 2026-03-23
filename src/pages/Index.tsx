@@ -472,6 +472,15 @@ const Index = () => {
                   <Button
                   variant="outline"
                   size="sm"
+                  className="gap-2"
+                  onClick={() => navigate('/pos-products')}>
+                  
+                    <Package className="w-4 h-4" />
+                    POS Products
+                  </Button>
+                  <Button
+                  variant="outline"
+                  size="sm"
                   className="gap-2 text-destructive hover:text-destructive"
                   onClick={signOut}>
                   
