@@ -63,6 +63,7 @@ const Index = () => {
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
+  const [posEnabled, setPosEnabled] = useState(false);
 
   // Load business settings from database
   useEffect(() => {
@@ -83,6 +84,7 @@ const Index = () => {
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
+          if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
         });
       }
     };
@@ -285,9 +287,11 @@ const Index = () => {
             <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
-              <ShoppingCart className="w-5 h-5" />
-            </button>
+            {posEnabled && (
+              <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
+                <ShoppingCart className="w-5 h-5" />
+              </button>
+            )}
             {packagesEnabled && (
               <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
                 <Car className="w-5 h-5" />
@@ -351,8 +355,15 @@ const Index = () => {
                 <Input value={masterSiteUrl} onChange={(e) => setMasterSiteUrl(e.target.value)} placeholder="https://vpjjzekbtpagjaauxood.supabase.co" className="bg-secondary border-border" />
               </div>
               <div className="sm:col-span-2 mt-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Features</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Feature Toggles</h3>
                 <div className="space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={posEnabled} onChange={(e) => setPosEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
+                    <div>
+                      <span className={`text-sm font-medium ${posEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>Point of Sale (POS)</span>
+                      <p className="text-xs text-muted-foreground">Enable POS system for selling items like coffee, snacks, etc.</p>
+                    </div>
+                  </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" checked={unlimitedPackagesEnabled} onChange={(e) => setUnlimitedPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
                     <div>
@@ -422,7 +433,8 @@ const Index = () => {
                     { key: 'packages_enabled', value: String(packagesEnabled) },
                     { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) },
                     { key: 'package_exterior_price', value: packageExteriorPrice },
-                    { key: 'package_interior_price', value: packageInteriorPrice }];
+                    { key: 'package_interior_price', value: packageInteriorPrice },
+                    { key: 'pos_enabled', value: String(posEnabled) }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
