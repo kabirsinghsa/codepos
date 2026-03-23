@@ -64,6 +64,101 @@ export type Database = {
           },
         ]
       }
+      pos_products: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pos_transaction_items: {
+        Row: {
+          id: string
+          line_total: number
+          product_description: string
+          product_name: string
+          quantity: number
+          transaction_id: string
+          unit_price: number
+        }
+        Insert: {
+          id?: string
+          line_total?: number
+          product_description?: string
+          product_name: string
+          quantity?: number
+          transaction_id: string
+          unit_price?: number
+        }
+        Update: {
+          id?: string
+          line_total?: number
+          product_description?: string
+          product_name?: string
+          quantity?: number
+          transaction_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_transaction_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_transactions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          items_count: number
+          total: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items_count?: number
+          total?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items_count?: number
+          total?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approved: boolean

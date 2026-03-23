@@ -17,6 +17,8 @@ import NotFound from "./pages/NotFound";
 import MyCodes from "./pages/MyCodes";
 import Packages from "./pages/Packages";
 import Install from "./pages/Install";
+import PosProducts from "./pages/PosProducts";
+import Pos from "./pages/Pos";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
             <Route path="/pricing" element={<AdminRoute><WashPricing /></AdminRoute>} />
             <Route path="/packages" element={<ProtectedRoute><Packages /></ProtectedRoute>} />
+            <Route path="/pos" element={<ProtectedRoute><Pos /></ProtectedRoute>} />
+            <Route path="/pos-products" element={<AdminRoute><PosProducts /></AdminRoute>} />
             <Route path="/install" element={<Install />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

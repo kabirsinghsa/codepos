@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Printer, Car } from 'lucide-react';
+import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Printer, Car, ShoppingCart, Package } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -285,6 +285,9 @@ const Index = () => {
             <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
           </div>
           <div className="ml-auto flex items-center gap-4">
+            <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
+              <ShoppingCart className="w-5 h-5" />
+            </button>
             {packagesEnabled && (
               <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
                 <Car className="w-5 h-5" />
@@ -465,6 +468,15 @@ const Index = () => {
                   
                     <Car className="w-4 h-4" />
                     Wash Packages
+                  </Button>
+                  <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => navigate('/pos-products')}>
+                  
+                    <Package className="w-4 h-4" />
+                    POS Products
                   </Button>
                   <Button
                   variant="outline"
