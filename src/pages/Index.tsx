@@ -63,6 +63,7 @@ const Index = () => {
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
+  const [posEnabled, setPosEnabled] = useState(false);
 
   // Load business settings from database
   useEffect(() => {
@@ -83,6 +84,7 @@ const Index = () => {
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
+          if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
         });
       }
     };
@@ -285,9 +287,11 @@ const Index = () => {
             <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
-              <ShoppingCart className="w-5 h-5" />
-            </button>
+            {posEnabled && (
+              <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
+                <ShoppingCart className="w-5 h-5" />
+              </button>
+            )}
             {packagesEnabled && (
               <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
                 <Car className="w-5 h-5" />
