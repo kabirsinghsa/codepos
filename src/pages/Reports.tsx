@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getDaysInMonth } from 'date-fns';
-import { FileText, Download, ArrowLeft, CalendarDays, Calendar, Car } from 'lucide-react';
+import { FileText, Download, ArrowLeft, CalendarDays, Calendar, Car, ShoppingCart } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import PosReport from '@/components/PosReport';
 
 interface WashRecord {
   id: string;
@@ -325,10 +326,11 @@ const Reports = () => {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="daily" className="gap-2"><CalendarDays className="w-4 h-4" /> Daily</TabsTrigger>
             <TabsTrigger value="monthly" className="gap-2"><Calendar className="w-4 h-4" /> Monthly</TabsTrigger>
             <TabsTrigger value="packages" className="gap-2"><Car className="w-4 h-4" /> Packages</TabsTrigger>
+            <TabsTrigger value="pos" className="gap-2"><ShoppingCart className="w-4 h-4" /> POS</TabsTrigger>
           </TabsList>
 
           {/* Daily Report */}
@@ -396,6 +398,11 @@ const Reports = () => {
           {/* Package Wash Report */}
           <TabsContent value="packages" className="space-y-6 mt-6">
             <PackageWashReport />
+          </TabsContent>
+
+          {/* POS Report */}
+          <TabsContent value="pos" className="space-y-6 mt-6">
+            <PosReport />
           </TabsContent>
         </Tabs>
       </main>
