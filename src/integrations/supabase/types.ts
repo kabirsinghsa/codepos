@@ -29,6 +29,60 @@ export type Database = {
         }
         Relationships: []
       }
+      package_orders: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_email: string
+          customer_id: string | null
+          customer_phone: string
+          duration_days: number
+          id: string
+          package_id: string | null
+          package_type: string
+          payfast_payment_id: string | null
+          payment_status: string
+          updated_at: string
+          vehicle_colour: string
+          vehicle_make: string
+          vehicle_reg: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          customer_email?: string
+          customer_id?: string | null
+          customer_phone?: string
+          duration_days?: number
+          id?: string
+          package_id?: string | null
+          package_type?: string
+          payfast_payment_id?: string | null
+          payment_status?: string
+          updated_at?: string
+          vehicle_colour?: string
+          vehicle_make?: string
+          vehicle_reg: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_email?: string
+          customer_id?: string | null
+          customer_phone?: string
+          duration_days?: number
+          id?: string
+          package_id?: string | null
+          package_type?: string
+          payfast_payment_id?: string | null
+          payment_status?: string
+          updated_at?: string
+          vehicle_colour?: string
+          vehicle_make?: string
+          vehicle_reg?: string
+        }
+        Relationships: []
+      }
       package_wash_logs: {
         Row: {
           id: string
