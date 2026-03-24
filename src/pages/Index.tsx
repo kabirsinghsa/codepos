@@ -64,6 +64,10 @@ const Index = () => {
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
   const [posEnabled, setPosEnabled] = useState(false);
+  const [payfastMerchantId, setPayfastMerchantId] = useState('');
+  const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
+  const [payfastPassphrase, setPayfastPassphrase] = useState('');
+  const [payfastSandbox, setPayfastSandbox] = useState(true);
 
   // Load business settings from database
   useEffect(() => {
@@ -85,6 +89,10 @@ const Index = () => {
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
           if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
+          if (row.key === 'payfast_merchant_id') setPayfastMerchantId(row.value);
+          if (row.key === 'payfast_merchant_key') setPayfastMerchantKey(row.value);
+          if (row.key === 'payfast_passphrase') setPayfastPassphrase(row.value);
+          if (row.key === 'payfast_sandbox') setPayfastSandbox(row.value === 'true');
         });
       }
     };
@@ -383,6 +391,32 @@ const Index = () => {
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Ultimate Wash with Interior (R)</label>
                     <Input type="number" min={0} value={packageInteriorPrice} onChange={(e) => setPackageInteriorPrice(e.target.value)} className="font-mono bg-secondary border-border" />
+                  </div>
+                </div>
+              </div>
+              <div className="sm:col-span-2 mt-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">PayFast Settings</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Merchant ID</label>
+                    <Input value={payfastMerchantId} onChange={(e) => setPayfastMerchantId(e.target.value)} placeholder="e.g. 10000100" className="font-mono bg-secondary border-border" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Merchant Key</label>
+                    <Input value={payfastMerchantKey} onChange={(e) => setPayfastMerchantKey(e.target.value)} placeholder="e.g. 46f0cd694581a" className="font-mono bg-secondary border-border" type="password" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Passphrase</label>
+                    <Input value={payfastPassphrase} onChange={(e) => setPayfastPassphrase(e.target.value)} placeholder="Your PayFast passphrase" className="font-mono bg-secondary border-border" type="password" />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-3 cursor-pointer pb-2">
+                      <input type="checkbox" checked={payfastSandbox} onChange={(e) => setPayfastSandbox(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
+                      <div>
+                        <span className="text-sm font-medium text-foreground">Sandbox Mode</span>
+                        <p className="text-xs text-muted-foreground">Use PayFast test environment</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>
