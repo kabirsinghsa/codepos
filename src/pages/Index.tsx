@@ -468,7 +468,11 @@ const Index = () => {
                     { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) },
                     { key: 'package_exterior_price', value: packageExteriorPrice },
                     { key: 'package_interior_price', value: packageInteriorPrice },
-                    { key: 'pos_enabled', value: String(posEnabled) }];
+                    { key: 'pos_enabled', value: String(posEnabled) },
+                    { key: 'payfast_merchant_id', value: payfastMerchantId },
+                    { key: 'payfast_merchant_key', value: payfastMerchantKey },
+                    { key: 'payfast_passphrase', value: payfastPassphrase },
+                    { key: 'payfast_sandbox', value: String(payfastSandbox) }];
 
                     for (const u of updates) {
                       await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
