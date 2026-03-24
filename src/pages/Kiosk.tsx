@@ -170,15 +170,18 @@ const Kiosk = () => {
     }
   }, [bayState.status]);
 
-  // Auto-start scanner when idle in code mode
+  // Auto-start scanner when idle in code mode (or both mode)
   useEffect(() => {
-    if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
+    if (bayState.status === 'idle' && (mode === 'code' || showBothScanners) && !scanning && !validating) {
       startScanner();
     }
-    if ((bayState.status !== 'idle' || mode !== 'code') && scanning) {
+    if (bayState.status !== 'idle' && scanning) {
       stopScanner();
     }
-  }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
+    if (!showBothScanners && mode !== 'code' && scanning) {
+      stopScanner();
+    }
+  }, [bayState.status, mode, showBothScanners, scanning, validating, startScanner, stopScanner]);
 
   // Stop scanner when switching to plate mode
   useEffect(() => {
