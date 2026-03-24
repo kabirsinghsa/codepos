@@ -68,7 +68,7 @@ const Index = () => {
   const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
   const [payfastPassphrase, setPayfastPassphrase] = useState('');
   const [payfastSandbox, setPayfastSandbox] = useState(true);
-
+  const [activePackagesCount, setActivePackagesCount] = useState(0);
   // Load business settings from database
   useEffect(() => {
     const fetchSettings = async () => {
@@ -97,6 +97,19 @@ const Index = () => {
       }
     };
     fetchSettings();
+  }, []);
+
+  // Load active packages count
+  useEffect(() => {
+    const fetchActivePackages = async () => {
+      const { count } = await supabase
+        .from('wash_packages')
+        .select('*', { count: 'exact', head: true })
+        .eq('active', true)
+        .gte('end_date', new Date().toISOString());
+      setActivePackagesCount(count || 0);
+    };
+    fetchActivePackages();
   }, []);
 
   // Load prices from database
@@ -324,6 +337,12 @@ const Index = () => {
               <span className="text-2xl font-bold font-mono text-primary">{activeCount}</span>
               <p className="text-xs text-muted-foreground">Active Codes</p>
             </div>
+            {unlimitedPackagesEnabled && (
+              <div className="text-right">
+                <span className="text-2xl font-bold font-mono text-primary">{activePackagesCount}</span>
+                <p className="text-xs text-muted-foreground">Active Packages</p>
+              </div>
+            )}
           </div>
         </div>
       </header>
