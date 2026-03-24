@@ -99,6 +99,19 @@ const Index = () => {
     fetchSettings();
   }, []);
 
+  // Load active packages count
+  useEffect(() => {
+    const fetchActivePackages = async () => {
+      const { count } = await supabase
+        .from('wash_packages')
+        .select('*', { count: 'exact', head: true })
+        .eq('active', true)
+        .gte('end_date', new Date().toISOString());
+      setActivePackagesCount(count || 0);
+    };
+    fetchActivePackages();
+  }, []);
+
   // Load prices from database
   useEffect(() => {
     const fetchPrices = async () => {
