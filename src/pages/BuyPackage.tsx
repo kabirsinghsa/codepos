@@ -143,23 +143,6 @@ const BuyPackage = () => {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Choose Your Package</h2>
 
-            {sites.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-1">
-                  <MapPin className="w-4 h-4" /> Preferred Site
-                </label>
-                <Select value={siteId} onValueChange={setSiteId}>
-                  <SelectTrigger><SelectValue placeholder="Select a site (optional)" /></SelectTrigger>
-                  <SelectContent>
-                    {sites.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name} — {site.address}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="space-y-3">
               {PACKAGE_TYPES.map((pkg) => (
