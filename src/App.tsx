@@ -21,6 +21,7 @@ import PosProducts from "./pages/PosProducts";
 import Pos from "./pages/Pos";
 import Sites from "./pages/Sites";
 import BuyPackage from "./pages/BuyPackage";
+import PackageOrders from "./pages/PackageOrders";
 
 const queryClient = new QueryClient();
 
