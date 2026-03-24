@@ -336,7 +336,7 @@ const BuyPackage = () => {
         {/* Step 4: Success */}
         {step === 4 && (
           <div className="text-center space-y-4 py-8">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+            <CheckCircle className="w-16 h-16 text-primary mx-auto" />
             <h2 className="text-2xl font-bold text-foreground">Order Placed!</h2>
             <p className="text-muted-foreground">
               Your wash package order has been received. Once payment is confirmed, your package will be activated.
