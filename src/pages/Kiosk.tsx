@@ -265,8 +265,8 @@ const Kiosk = () => {
           {config.title}
         </motion.h2>
 
-        {/* Mode Switcher (visible when idle and packages NOT enabled) */}
-        {bayState.status === 'idle' && !showBothScanners && (
+        {/* Mode Switcher (visible when idle) */}
+        {bayState.status === 'idle' && (
           <div className="flex justify-center gap-2">
             <button
               onClick={() => setMode('code')}
@@ -279,67 +279,24 @@ const Kiosk = () => {
               <QrCode className="w-5 h-5" />
               Scan QR Code
             </button>
-          </div>
-        )}
-
-        {/* Both scanners side by side when packages enabled */}
-        {bayState.status === 'idle' && showBothScanners && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl mx-auto">
-            {/* QR Code Scanner */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center gap-3"
-            >
-              <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                <QrCode className="w-5 h-5" />
-                Scan QR Code
-              </div>
-              <div className="relative w-64 h-64 mx-auto rounded-2xl overflow-hidden border-4 border-primary/30 bg-black">
-                <div id={scannerContainerId} className="w-full h-full" />
-                {validating && (
-                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                  </div>
-                )}
-              </div>
-              {scanning ? (
-                <div className="flex items-center gap-2 text-primary">
-                  <Camera className="w-4 h-4" />
-                  <span className="text-xs font-mono">Camera Active</span>
-                </div>
-              ) : (
-                <button onClick={startScanner} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium">
-                  <CameraOff className="w-3 h-3" />
-                  Enable Camera
-                </button>
-              )}
-            </motion.div>
-
-            {/* Plate Scanner */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex flex-col items-center gap-3"
-            >
-              <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+            {showBothScanners && (
+              <button
+                onClick={() => setMode('plate')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+                  mode === 'plate'
+                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                }`}
+              >
                 <Car className="w-5 h-5" />
                 Scan Reg Number
-              </div>
-              <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
-              {validating && (
-                <div className="mt-2 flex items-center justify-center gap-2 text-primary">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-xs font-mono">Checking package...</span>
-                </div>
-              )}
-            </motion.div>
+              </button>
+            )}
           </div>
         )}
 
-        {/* QR Code Scanner only (when packages not enabled) */}
-        {bayState.status === 'idle' && !showBothScanners && mode === 'code' && (
+        {/* QR Code Scanner */}
+        {bayState.status === 'idle' && mode === 'code' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -363,6 +320,22 @@ const Kiosk = () => {
                 <CameraOff className="w-4 h-4" />
                 Enable Camera
               </button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Plate Scanner */}
+        {bayState.status === 'idle' && mode === 'plate' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
+            {validating && (
+              <div className="mt-4 flex items-center justify-center gap-2 text-primary">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm font-mono">Checking package...</span>
+              </div>
             )}
           </motion.div>
         )}
