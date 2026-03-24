@@ -19,6 +19,7 @@ import Packages from "./pages/Packages";
 import Install from "./pages/Install";
 import PosProducts from "./pages/PosProducts";
 import Pos from "./pages/Pos";
+import Sites from "./pages/Sites";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/packages" element={<ProtectedRoute><Packages /></ProtectedRoute>} />
             <Route path="/pos" element={<ProtectedRoute><Pos /></ProtectedRoute>} />
             <Route path="/pos-products" element={<AdminRoute><PosProducts /></AdminRoute>} />
+            <Route path="/sites" element={<AdminRoute><Sites /></AdminRoute>} />
             <Route path="/install" element={<Install />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
