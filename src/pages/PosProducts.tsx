@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, ArrowLeft, Loader2, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowLeft, Loader2, Package, ImagePlus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Footer from '@/components/Footer';
 
@@ -17,6 +17,7 @@ interface PosProduct {
   price: number;
   category: string;
   active: boolean;
+  image_url: string;
 }
 
 const PosProducts = () => {
@@ -30,6 +31,10 @@ const PosProducts = () => {
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('General');
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -53,6 +58,8 @@ const PosProducts = () => {
     setDescription('');
     setPrice('');
     setCategory('General');
+    setImageFile(null);
+    setImagePreview('');
     setDialogOpen(true);
   };
 
@@ -62,24 +69,54 @@ const PosProducts = () => {
     setDescription(p.description);
     setPrice(String(p.price));
     setCategory(p.category);
+    setImageFile(null);
+    setImagePreview(p.image_url || '');
     setDialogOpen(true);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB');
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    const ext = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('pos-products').upload(fileName, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('pos-products').getPublicUrl(fileName);
+    return data.publicUrl;
   };
 
   const handleSave = async () => {
     if (!name.trim() || !price) return;
     setSaving(true);
     try {
+      let imageUrl = editingProduct?.image_url || '';
+
+      if (imageFile) {
+        setUploadingImage(true);
+        imageUrl = await uploadImage(imageFile);
+        setUploadingImage(false);
+      }
+
       if (editingProduct) {
         const { error } = await supabase
           .from('pos_products')
-          .update({ name: name.trim(), description: description.trim(), price: Number(price), category: category.trim(), updated_at: new Date().toISOString() } as any)
+          .update({ name: name.trim(), description: description.trim(), price: Number(price), category: category.trim(), image_url: imageUrl, updated_at: new Date().toISOString() } as any)
           .eq('id', editingProduct.id);
         if (error) throw error;
         toast.success('Product updated');
       } else {
         const { error } = await supabase
           .from('pos_products')
-          .insert({ name: name.trim(), description: description.trim(), price: Number(price), category: category.trim() } as any);
+          .insert({ name: name.trim(), description: description.trim(), price: Number(price), category: category.trim(), image_url: imageUrl } as any);
         if (error) throw error;
         toast.success('Product added');
       }
@@ -89,6 +126,7 @@ const PosProducts = () => {
       toast.error(e.message);
     } finally {
       setSaving(false);
+      setUploadingImage(false);
     }
   };
 
@@ -159,7 +197,12 @@ const PosProducts = () => {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{cat}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {products.filter(p => p.category === cat).map(p => (
-                  <Card key={p.id} className={`${!p.active ? 'opacity-50' : ''}`}>
+                  <Card key={p.id} className={`overflow-hidden ${!p.active ? 'opacity-50' : ''}`}>
+                    {p.image_url && (
+                      <div className="aspect-[16/9] overflow-hidden bg-muted">
+                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                      </div>
+                    )}
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -194,6 +237,37 @@ const PosProducts = () => {
             <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Image upload */}
+            <div>
+              <Label>Product Image</Label>
+              <div className="mt-1">
+                {imagePreview ? (
+                  <div className="relative rounded-lg overflow-hidden bg-muted aspect-[16/9]">
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => { setImageFile(null); setImagePreview(''); }}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-background/80 hover:bg-background text-foreground"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full aspect-[16/9] rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-secondary/50 flex flex-col items-center justify-center gap-2 transition-colors"
+                  >
+                    <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Add photo</span>
+                  </button>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                {imagePreview && (
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="mt-2 w-full gap-2">
+                    <ImagePlus className="w-4 h-4" /> Change photo
+                  </Button>
+                )}
+              </div>
+            </div>
             <div>
               <Label>Name</Label>
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Coffee" className="bg-secondary" />
@@ -211,8 +285,8 @@ const PosProducts = () => {
               <Input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Beverages, Snacks" className="bg-secondary" />
             </div>
             <Button onClick={handleSave} disabled={saving || !name.trim() || !price} className="w-full">
-              {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              {editingProduct ? 'Update Product' : 'Add Product'}
+              {(saving || uploadingImage) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              {uploadingImage ? 'Uploading image...' : editingProduct ? 'Update Product' : 'Add Product'}
             </Button>
           </div>
         </DialogContent>
