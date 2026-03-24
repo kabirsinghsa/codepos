@@ -42,6 +42,7 @@ export type Database = {
           package_type: string
           payfast_payment_id: string | null
           payment_status: string
+          site_id: string | null
           updated_at: string
           vehicle_colour: string
           vehicle_make: string
@@ -59,6 +60,7 @@ export type Database = {
           package_type?: string
           payfast_payment_id?: string | null
           payment_status?: string
+          site_id?: string | null
           updated_at?: string
           vehicle_colour?: string
           vehicle_make?: string
@@ -76,12 +78,21 @@ export type Database = {
           package_type?: string
           payfast_payment_id?: string | null
           payment_status?: string
+          site_id?: string | null
           updated_at?: string
           vehicle_colour?: string
           vehicle_make?: string
           vehicle_reg?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "package_orders_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       package_wash_logs: {
         Row: {

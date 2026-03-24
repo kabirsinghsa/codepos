@@ -20,6 +20,7 @@ import Install from "./pages/Install";
 import PosProducts from "./pages/PosProducts";
 import Pos from "./pages/Pos";
 import Sites from "./pages/Sites";
+import BuyPackage from "./pages/BuyPackage";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/kiosk" element={<Kiosk />} />
+            <Route path="/buy-package" element={<BuyPackage />} />
             <Route path="/my-codes" element={<MyCodes />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/monitor" element={<ProtectedRoute><Monitor /></ProtectedRoute>} />
