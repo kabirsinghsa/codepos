@@ -87,6 +87,7 @@ export type Database = {
         Row: {
           id: string
           package_id: string
+          site_id: string | null
           site_name: string
           vehicle_reg: string
           wash_type: string
@@ -95,6 +96,7 @@ export type Database = {
         Insert: {
           id?: string
           package_id: string
+          site_id?: string | null
           site_name?: string
           vehicle_reg: string
           wash_type?: string
@@ -103,6 +105,7 @@ export type Database = {
         Update: {
           id?: string
           package_id?: string
+          site_id?: string | null
           site_name?: string
           vehicle_reg?: string
           wash_type?: string
@@ -114,6 +117,13 @@ export type Database = {
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "wash_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "package_wash_logs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -234,6 +244,36 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      sites: {
+        Row: {
+          active: boolean
+          address: string
+          created_at: string
+          id: string
+          name: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -365,6 +405,7 @@ export type Database = {
           end_date: string
           id: string
           price: number
+          site_id: string | null
           start_date: string
           updated_at: string
           vehicle_colour: string
@@ -379,6 +420,7 @@ export type Database = {
           end_date: string
           id?: string
           price?: number
+          site_id?: string | null
           start_date?: string
           updated_at?: string
           vehicle_colour?: string
@@ -393,6 +435,7 @@ export type Database = {
           end_date?: string
           id?: string
           price?: number
+          site_id?: string | null
           start_date?: string
           updated_at?: string
           vehicle_colour?: string
@@ -400,7 +443,15 @@ export type Database = {
           vehicle_reg?: string
           wash_type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wash_packages_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wash_prices: {
         Row: {
