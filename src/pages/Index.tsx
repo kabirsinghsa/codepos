@@ -329,6 +329,36 @@ const Index = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+        {/* Cart Summary */}
+        <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <ShoppingCart className="w-5 h-5 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Order Summary</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div>
+              <span className="text-xs text-muted-foreground block">Vehicle</span>
+              <span className="font-medium text-foreground">{VEHICLE_TYPES.find(v => v.id === selectedVehicle)?.label}</span>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground block">Wash Type</span>
+              <span className="font-medium text-foreground capitalize">{selectedWash}</span>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground block">Extras</span>
+              <span className="font-medium text-foreground">
+                {selectedExtras.size > 0 ? `${selectedExtras.size} selected (+R${extrasTotal})` : 'None'}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground block">Total</span>
+              <span className="font-bold text-primary text-lg font-mono">
+                R{isMultiWash ? (totalPrice * washQuantity).toFixed(2) : totalPrice.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </section>
+
         {showSettings &&
         <section className="rounded-lg border border-border bg-card p-4 space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Receipt Settings</h2>
