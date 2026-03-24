@@ -474,8 +474,11 @@ const Index = () => {
                     { key: 'payfast_passphrase', value: payfastPassphrase },
                     { key: 'payfast_sandbox', value: String(payfastSandbox) }];
 
-                    for (const u of updates) {
-                      await supabase.from('business_settings').update({ value: u.value }).eq('key', u.key);
+                    const { error } = await supabase.from('business_settings').upsert(updates, { onConflict: 'key' });
+                    if (error) {
+                      toast.error('Failed to save settings');
+                      console.error(error);
+                      return;
                     }
                     toast.success('Receipt settings saved');
                   }}>
