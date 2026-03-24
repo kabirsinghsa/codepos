@@ -52,6 +52,7 @@ const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
   const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
+  const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
