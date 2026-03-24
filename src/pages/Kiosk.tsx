@@ -52,6 +52,7 @@ const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
   const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
+  const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
@@ -59,7 +60,7 @@ const Kiosk = () => {
     started_at: null,
   });
   const [mode, setMode] = useState<KioskMode>('code');
-  const showBothScanners = packagesEnabled;
+  const showBothScanners = packagesEnabled || unlimitedPackagesEnabled;
   const [packageInfo, setPackageInfo] = useState<{ vehicle_reg?: string; days_remaining?: number } | null>(null);
 
   useEffect(() => {
@@ -69,6 +70,7 @@ const Kiosk = () => {
           if (row.key === 'business_name') setBusinessName(row.value);
           if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
+          if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
       }
     });
