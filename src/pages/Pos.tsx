@@ -13,6 +13,7 @@ interface PosProduct {
   description: string;
   price: number;
   category: string;
+  image_url: string;
 }
 
 interface BasketItem {
@@ -215,10 +216,21 @@ const Pos = () => {
                     <button
                       key={p.id}
                       onClick={() => addToBasket(p)}
-                      className="p-3 rounded-lg border border-border bg-card hover:bg-secondary hover:border-primary/50 transition-all text-left active:scale-95"
+                      className="rounded-lg border border-border bg-card hover:bg-secondary hover:border-primary/50 transition-all text-left active:scale-95 overflow-hidden flex flex-col"
                     >
-                      <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
-                      <p className="text-lg font-bold font-mono text-primary mt-1">R{Number(p.price).toFixed(2)}</p>
+                      {p.image_url ? (
+                        <div className="aspect-square overflow-hidden bg-muted">
+                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="aspect-square bg-muted/50 flex items-center justify-center">
+                          <ShoppingCart className="w-8 h-8 text-muted-foreground/30" />
+                        </div>
+                      )}
+                      <div className="p-2.5">
+                        <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
+                        <p className="text-lg font-bold font-mono text-primary mt-0.5">R{Number(p.price).toFixed(2)}</p>
+                      </div>
                     </button>
                   ))}
                 </div>
