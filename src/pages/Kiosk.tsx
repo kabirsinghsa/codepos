@@ -59,6 +59,7 @@ const Kiosk = () => {
     started_at: null,
   });
   const [mode, setMode] = useState<KioskMode>('code');
+  const showBothScanners = packagesEnabled;
   const [packageInfo, setPackageInfo] = useState<{ vehicle_reg?: string; days_remaining?: number } | null>(null);
 
   useEffect(() => {
