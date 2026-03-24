@@ -1,0 +1,1 @@
+ALTER TABLE public.package_orders ADD COLUMN IF NOT EXISTS site_id uuid REFERENCES public.sites(id) ON DELETE SET NULL;
