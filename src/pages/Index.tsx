@@ -68,7 +68,7 @@ const Index = () => {
   const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
   const [payfastPassphrase, setPayfastPassphrase] = useState('');
   const [payfastSandbox, setPayfastSandbox] = useState(true);
-
+  const [activePackagesCount, setActivePackagesCount] = useState(0);
   // Load business settings from database
   useEffect(() => {
     const fetchSettings = async () => {
