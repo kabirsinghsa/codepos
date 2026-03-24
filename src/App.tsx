@@ -19,6 +19,7 @@ import Packages from "./pages/Packages";
 import Install from "./pages/Install";
 import PosProducts from "./pages/PosProducts";
 import Pos from "./pages/Pos";
+import Sites from "./pages/Sites";
 
 const queryClient = new QueryClient();
 

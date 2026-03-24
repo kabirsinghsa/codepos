@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { plate, site_name } = await req.json()
+    const { plate, site_name, site_id } = await req.json()
 
     if (!plate || typeof plate !== 'string' || plate.trim().length < 3) {
       return new Response(
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Package found — log the wash with site name
+    // Package found — log the wash with site info
     await supabase
       .from('package_wash_logs')
       .insert({
@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
         vehicle_reg: cleanPlate,
         wash_type: pkg.wash_type,
         site_name: site_name || '',
+        site_id: site_id || null,
       })
 
     // Start the wash
