@@ -334,15 +334,17 @@ const Index = () => {
             </div>
             }
             <div className="text-right">
-              <span className="text-2xl font-bold font-mono text-primary">{activeCount}</span>
-              <p className="text-xs text-muted-foreground">Active Codes</p>
-            </div>
-            {unlimitedPackagesEnabled && (
-              <div className="text-right">
-                <span className="text-2xl font-bold font-mono text-primary">{activePackagesCount}</span>
-                <p className="text-xs text-muted-foreground">Active Packages</p>
+              <div>
+                <span className="text-2xl font-bold font-mono text-primary">{activeCount}</span>
+                <p className="text-xs text-muted-foreground">Active Codes</p>
               </div>
-            )}
+              {unlimitedPackagesEnabled && (
+                <div className="mt-1">
+                  <span className="text-2xl font-bold font-mono text-primary">{activePackagesCount}</span>
+                  <p className="text-xs text-muted-foreground">Active Packages</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
