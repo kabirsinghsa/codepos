@@ -139,50 +139,59 @@ const PackageWashReport = () => {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [logs, setLogs] = useState<PackageWashLog[]>([]);
   const [loading, setLoading] = useState(false);
-  const [siteName, setSiteName] = useState('');
+  const [siteFilter, setSiteFilter] = useState('all');
 
-  useEffect(() => {
-    supabase.from('business_settings').select('key, value').eq('key', 'site_name').then(({ data }) => {
-      if (data && data.length > 0) setSiteName(data[0].value);
-    });
-  }, []);
-
-  const fetchLogs = async (monthStr: string, site: string) => {
+  const fetchLogs = async (monthStr: string) => {
     setLoading(true);
     const [year, mon] = monthStr.split('-').map(Number);
     const start = `${monthStr}-01T00:00:00.000Z`;
     const lastDay = getDaysInMonth(new Date(year, mon - 1));
     const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
-    let query = supabase
+    const { data } = await supabase
       .from('package_wash_logs')
       .select('*')
       .gte('washed_at', start)
       .lte('washed_at', end)
       .order('washed_at', { ascending: false });
-    if (site) {
-      query = query.eq('site_name', site);
-    }
-    const { data } = await query;
     setLogs((data as PackageWashLog[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchLogs(month, siteName); }, [month, siteName]);
+  useEffect(() => { fetchLogs(month); }, [month]);
+
+  const uniqueSites = useMemo(() => {
+    const sites = new Set(logs.map(l => l.site_name).filter(Boolean));
+    return Array.from(sites).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    if (siteFilter === 'all') return logs;
+    return logs.filter(l => l.site_name === siteFilter);
+  }, [logs, siteFilter]);
 
   const byVehicle = useMemo(() => {
-    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string; site_name: string }> = {};
-    logs.forEach(l => {
+    const map: Record<string, { reg: string; wash_type: string; count: number; lastWash: string; sites: Set<string> }> = {};
+    filteredLogs.forEach(l => {
       if (!map[l.vehicle_reg]) {
-        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at, site_name: l.site_name || '' };
+        map[l.vehicle_reg] = { reg: l.vehicle_reg, wash_type: l.wash_type, count: 0, lastWash: l.washed_at, sites: new Set() };
       }
       map[l.vehicle_reg].count++;
+      if (l.site_name) map[l.vehicle_reg].sites.add(l.site_name);
       if (new Date(l.washed_at) > new Date(map[l.vehicle_reg].lastWash)) {
         map[l.vehicle_reg].lastWash = l.washed_at;
-        map[l.vehicle_reg].site_name = l.site_name || '';
       }
     });
-    return Object.values(map).sort((a, b) => b.count - a.count);
-  }, [logs]);
+    return Object.values(map).map(v => ({ ...v, sites: Array.from(v.sites) })).sort((a, b) => b.count - a.count);
+  }, [filteredLogs]);
+
+  const bySite = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredLogs.forEach(l => {
+      const s = l.site_name || 'Unknown';
+      map[s] = (map[s] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [filteredLogs]);
 
   return (
     <div className="space-y-6">
@@ -191,12 +200,23 @@ const PackageWashReport = () => {
           <label className="text-xs text-muted-foreground mb-1 block">Report Month</label>
           <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="bg-secondary border-border w-48" />
         </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Filter by Site</label>
+          <select
+            value={siteFilter}
+            onChange={e => setSiteFilter(e.target.value)}
+            className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+          >
+            <option value="all">All Sites</option>
+            {uniqueSites.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Washes</p>
-          <p className="text-3xl font-bold font-mono text-foreground mt-1">{logs.length}</p>
+          <p className="text-3xl font-bold font-mono text-foreground mt-1">{filteredLogs.length}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Unique Vehicles</p>
@@ -205,10 +225,26 @@ const PackageWashReport = () => {
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Avg Washes/Vehicle</p>
           <p className="text-3xl font-bold font-mono text-primary mt-1">
-            {byVehicle.length > 0 ? (logs.length / byVehicle.length).toFixed(1) : '0'}
+            {byVehicle.length > 0 ? (filteredLogs.length / byVehicle.length).toFixed(1) : '0'}
           </p>
         </div>
       </div>
+
+      {/* Per-Site Breakdown */}
+      {siteFilter === 'all' && bySite.length > 1 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Washes per Site</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {bySite.map(([site, count]) => (
+              <div key={site} className="rounded-lg border border-border bg-card p-4">
+                <p className="text-sm font-semibold text-foreground">{site}</p>
+                <p className="text-2xl font-bold font-mono text-primary mt-1">{count}</p>
+                <p className="text-xs text-muted-foreground">washes</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Washes per Vehicle ({byVehicle.length})</h2>
@@ -218,7 +254,7 @@ const PackageWashReport = () => {
               <tr className="border-b border-border text-muted-foreground text-left">
                 <th className="px-4 py-3 font-medium">Registration</th>
                 <th className="px-4 py-3 font-medium">Wash Type</th>
-                <th className="px-4 py-3 font-medium">Site</th>
+                <th className="px-4 py-3 font-medium">Sites Visited</th>
                 <th className="px-4 py-3 font-medium">Times Washed</th>
                 <th className="px-4 py-3 font-medium">Last Wash</th>
               </tr>
@@ -228,7 +264,9 @@ const PackageWashReport = () => {
                 <tr key={v.reg} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="px-4 py-3 font-mono font-bold text-foreground">{v.reg}</td>
                   <td className="px-4 py-3 capitalize">{v.wash_type}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{v.site_name || '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {v.sites.length > 0 ? v.sites.join(', ') : '—'}
+                  </td>
                   <td className="px-4 py-3 font-mono text-primary font-bold">{v.count}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{format(new Date(v.lastWash), 'dd MMM yyyy HH:mm')}</td>
                 </tr>
