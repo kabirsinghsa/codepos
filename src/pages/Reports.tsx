@@ -135,29 +135,51 @@ const TransactionTable = ({ records, showDate }: { records: WashRecord[]; showDa
   </section>
 );
 
+interface PackageOrderRecord {
+  id: string;
+  vehicle_reg: string;
+  package_type: string;
+  amount: number;
+  payment_status: string;
+  customer_email: string;
+  customer_phone: string;
+  duration_days: number;
+  created_at: string;
+}
+
 const PackageWashReport = () => {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [logs, setLogs] = useState<PackageWashLog[]>([]);
+  const [orders, setOrders] = useState<PackageOrderRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
 
-  const fetchLogs = async (monthStr: string) => {
+  const fetchData = async (monthStr: string) => {
     setLoading(true);
     const [year, mon] = monthStr.split('-').map(Number);
     const start = `${monthStr}-01T00:00:00.000Z`;
     const lastDay = getDaysInMonth(new Date(year, mon - 1));
     const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
-    const { data } = await supabase
-      .from('package_wash_logs')
-      .select('*')
-      .gte('washed_at', start)
-      .lte('washed_at', end)
-      .order('washed_at', { ascending: false });
-    setLogs((data as PackageWashLog[]) || []);
+    const [logsRes, ordersRes] = await Promise.all([
+      supabase
+        .from('package_wash_logs')
+        .select('*')
+        .gte('washed_at', start)
+        .lte('washed_at', end)
+        .order('washed_at', { ascending: false }),
+      supabase
+        .from('package_orders')
+        .select('*')
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false }),
+    ]);
+    setLogs((logsRes.data as PackageWashLog[]) || []);
+    setOrders((ordersRes.data as PackageOrderRecord[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchLogs(month); }, [month]);
+  useEffect(() => { fetchData(month); }, [month]);
 
   const uniqueSites = useMemo(() => {
     const sites = new Set(logs.map(l => l.site_name).filter(Boolean));
