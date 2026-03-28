@@ -135,29 +135,51 @@ const TransactionTable = ({ records, showDate }: { records: WashRecord[]; showDa
   </section>
 );
 
+interface PackageOrderRecord {
+  id: string;
+  vehicle_reg: string;
+  package_type: string;
+  amount: number;
+  payment_status: string;
+  customer_email: string;
+  customer_phone: string;
+  duration_days: number;
+  created_at: string;
+}
+
 const PackageWashReport = () => {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [logs, setLogs] = useState<PackageWashLog[]>([]);
+  const [orders, setOrders] = useState<PackageOrderRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [siteFilter, setSiteFilter] = useState('all');
 
-  const fetchLogs = async (monthStr: string) => {
+  const fetchData = async (monthStr: string) => {
     setLoading(true);
     const [year, mon] = monthStr.split('-').map(Number);
     const start = `${monthStr}-01T00:00:00.000Z`;
     const lastDay = getDaysInMonth(new Date(year, mon - 1));
     const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
-    const { data } = await supabase
-      .from('package_wash_logs')
-      .select('*')
-      .gte('washed_at', start)
-      .lte('washed_at', end)
-      .order('washed_at', { ascending: false });
-    setLogs((data as PackageWashLog[]) || []);
+    const [logsRes, ordersRes] = await Promise.all([
+      supabase
+        .from('package_wash_logs')
+        .select('*')
+        .gte('washed_at', start)
+        .lte('washed_at', end)
+        .order('washed_at', { ascending: false }),
+      supabase
+        .from('package_orders')
+        .select('*')
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false }),
+    ]);
+    setLogs((logsRes.data as PackageWashLog[]) || []);
+    setOrders((ordersRes.data as PackageOrderRecord[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchLogs(month); }, [month]);
+  useEffect(() => { fetchData(month); }, [month]);
 
   const uniqueSites = useMemo(() => {
     const sites = new Set(logs.map(l => l.site_name).filter(Boolean));
@@ -212,6 +234,63 @@ const PackageWashReport = () => {
           </select>
         </div>
       </div>
+
+      {/* Package Orders / Sales Summary */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Package Sales</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-lg border border-border bg-card p-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Orders</p>
+            <p className="text-3xl font-bold font-mono text-foreground mt-1">{orders.length}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Activated</p>
+            <p className="text-3xl font-bold font-mono text-foreground mt-1">{orders.filter(o => o.payment_status === 'activated').length}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Pending</p>
+            <p className="text-3xl font-bold font-mono text-foreground mt-1">{orders.filter(o => o.payment_status === 'pending' || o.payment_status === 'paid').length}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Revenue</p>
+            <p className="text-3xl font-bold font-mono text-primary mt-1">R{orders.filter(o => o.payment_status === 'activated').reduce((s, o) => s + Number(o.amount), 0).toFixed(2)}</p>
+          </div>
+        </div>
+        {orders.length > 0 && (
+          <div className="rounded-lg border border-border bg-card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-left">
+                  <th className="px-4 py-3 font-medium">Vehicle</th>
+                  <th className="px-4 py-3 font-medium">Package</th>
+                  <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-3 font-mono font-bold text-foreground">{o.vehicle_reg}</td>
+                    <td className="px-4 py-3 capitalize">{o.package_type.replace(/_/g, ' ')}</td>
+                    <td className="px-4 py-3 font-mono text-primary font-bold">R{Number(o.amount).toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${o.payment_status === 'activated' ? 'bg-primary/10 text-primary' : o.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-muted text-muted-foreground'}`}>
+                        {o.payment_status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{format(new Date(o.created_at), 'dd MMM yyyy HH:mm')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <hr className="border-border" />
+
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Package Wash Usage</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="rounded-lg border border-border bg-card p-5">
