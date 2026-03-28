@@ -5,6 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// Map package wash types to relay-compatible types
+const washTypeToRelay: Record<string, string> = {
+  basic: 'basic',
+  standard: 'standard',
+  premium: 'premium',
+  ultimate: 'ultimate',
+  ultimate_exterior: 'ultimate',
+  ultimate_interior: 'ultimate',
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -64,12 +74,14 @@ Deno.serve(async (req) => {
         site_id: site_id || null,
       })
 
+    const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
+
     // Start the wash
     await supabase
       .from('wash_bay_status')
       .update({
         status: 'washing',
-        current_wash_type: pkg.wash_type,
+        current_wash_type: relayWashType,
         current_code: `PKG-${cleanPlate}`,
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -83,7 +95,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         valid: true,
-        wash_type: pkg.wash_type,
+        wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
         vehicle_make: pkg.vehicle_make,
         vehicle_colour: pkg.vehicle_colour,
