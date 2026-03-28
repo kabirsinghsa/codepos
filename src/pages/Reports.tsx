@@ -292,7 +292,7 @@ const PackageWashReport = () => {
 
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Package Wash Usage</h2>
 
-
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Washes</p>
           <p className="text-3xl font-bold font-mono text-foreground mt-1">{filteredLogs.length}</p>
