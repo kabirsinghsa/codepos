@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, Car, Droplets, MapPin, CheckCircle } from 'lucide-react';
+import { Loader2, Car, Droplets, CheckCircle, XCircle } from 'lucide-react';
 import Footer from '@/components/Footer';
+import { useSearchParams } from 'react-router-dom';
 
 interface Site {
   id: string;
@@ -29,17 +30,20 @@ const DURATION_OPTIONS = [
 ];
 
 const BuyPackage = () => {
-  const [step, setStep] = useState(1);
+  const [searchParams] = useSearchParams();
+  const paymentResult = searchParams.get('payment');
+  const paymentOrderId = searchParams.get('order_id');
+
+  const [step, setStep] = useState(paymentResult === 'success' ? 4 : paymentResult === 'cancelled' ? 5 : 1);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const payfastFormRef = useRef<HTMLFormElement>(null);
 
-  // Prices
   const [exteriorPrice, setExteriorPrice] = useState(500);
   const [interiorPrice, setInteriorPrice] = useState(800);
 
-  // Form
   const [siteId, setSiteId] = useState('');
   const [packageType, setPackageType] = useState('ultimate_exterior');
   const [duration, setDuration] = useState(30);
@@ -48,6 +52,10 @@ const BuyPackage = () => {
   const [vehicleColour, setVehicleColour] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+
+  // PayFast redirect state
+  const [payfastUrl, setPayfastUrl] = useState('');
+  const [payfastData, setPayfastData] = useState<Record<string, string>>({});
 
   const monthlyPrice = packageType === 'ultimate_exterior' ? exteriorPrice : interiorPrice;
   const totalPrice = monthlyPrice * (duration / 30);
@@ -74,6 +82,13 @@ const BuyPackage = () => {
     fetchData();
   }, []);
 
+  // Auto-submit PayFast form when data is ready
+  useEffect(() => {
+    if (payfastUrl && payfastFormRef.current) {
+      payfastFormRef.current.submit();
+    }
+  }, [payfastUrl]);
+
   const handleSubmitOrder = async () => {
     if (!vehicleReg.trim()) { toast.error('Registration number is required'); return; }
     if (!customerEmail.trim()) { toast.error('Email is required'); return; }
@@ -81,8 +96,7 @@ const BuyPackage = () => {
 
     setSubmitting(true);
     try {
-      // For now, create order as pending — PayFast integration will handle payment
-      const { error } = await supabase.functions.invoke('create-package-order', {
+      const { data, error } = await supabase.functions.invoke('create-package-order', {
         body: {
           site_id: siteId || null,
           package_type: packageType,
@@ -97,8 +111,17 @@ const BuyPackage = () => {
       });
 
       if (error) throw error;
-      setStep(4); // Success
-      toast.success('Order placed successfully!');
+
+      if (data?.payfast && data?.payfast_url && data?.payfast_data) {
+        // Redirect to PayFast
+        toast.info('Redirecting to PayFast for payment...');
+        setPayfastUrl(data.payfast_url);
+        setPayfastData(data.payfast_data);
+      } else {
+        // No PayFast - show success (pending manual activation)
+        setStep(4);
+        toast.success('Order placed successfully!');
+      }
     } catch (err) {
       toast.error('Failed to place order. Please try again.');
     } finally {
@@ -116,6 +139,15 @@ const BuyPackage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex flex-col">
+      {/* Hidden PayFast form for redirect */}
+      {payfastUrl && (
+        <form ref={payfastFormRef} action={payfastUrl} method="POST" style={{ display: 'none' }}>
+          {Object.entries(payfastData).map(([key, value]) => (
+            <input key={key} type="hidden" name={key} value={value} />
+          ))}
+        </form>
+      )}
+
       <div className="flex-1 max-w-lg mx-auto w-full px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -124,25 +156,26 @@ const BuyPackage = () => {
           <p className="text-muted-foreground text-sm mt-1">Purchase a Wash Package</p>
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
-                step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
-                {step > s ? <CheckCircle className="w-4 h-4" /> : s}
+        {/* Progress (only show for steps 1-3) */}
+        {step <= 3 && (
+          <div className="flex items-center justify-center gap-2 mb-8">
+            {[1, 2, 3].map((s) => (
+              <div key={s} className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                  step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {step > s ? <CheckCircle className="w-4 h-4" /> : s}
+                </div>
+                {s < 3 && <div className={`w-8 h-0.5 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
               </div>
-              {s < 3 && <div className={`w-8 h-0.5 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Step 1: Select Package */}
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Choose Your Package</h2>
-
 
             <div className="space-y-3">
               {PACKAGE_TYPES.map((pkg) => (
@@ -293,12 +326,6 @@ const BuyPackage = () => {
                   <span className="text-muted-foreground">Vehicle</span>
                   <span className="font-medium">{vehicleReg}</span>
                 </div>
-                {siteId && sites.find(s => s.id === siteId) && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Site</span>
-                    <span className="font-medium">{sites.find(s => s.id === siteId)?.name}</span>
-                  </div>
-                )}
                 <div className="border-t pt-2 mt-2 flex justify-between font-bold text-foreground">
                   <span>Total</span>
                   <span className="text-primary">R{totalPrice.toFixed(2)}</span>
@@ -310,7 +337,7 @@ const BuyPackage = () => {
               <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>Back</Button>
               <Button className="flex-1" onClick={handleSubmitOrder} disabled={submitting}>
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Place Order
+                {submitting ? 'Processing...' : 'Pay Now'}
               </Button>
             </div>
           </div>
@@ -320,15 +347,44 @@ const BuyPackage = () => {
         {step === 4 && (
           <div className="text-center space-y-4 py-8">
             <CheckCircle className="w-16 h-16 text-primary mx-auto" />
-            <h2 className="text-2xl font-bold text-foreground">Order Placed!</h2>
+            <h2 className="text-2xl font-bold text-foreground">
+              {paymentResult === 'success' ? 'Payment Successful!' : 'Order Placed!'}
+            </h2>
             <p className="text-muted-foreground">
-              Your wash package order has been received. Once payment is confirmed, your package will be activated.
+              {paymentResult === 'success'
+                ? 'Your payment has been received and your wash package is being activated. You can start washing shortly!'
+                : 'Your wash package order has been received. Once payment is confirmed, your package will be activated.'}
             </p>
-            <p className="text-sm text-muted-foreground">
-              Vehicle: <span className="font-semibold text-foreground">{vehicleReg}</span>
-            </p>
-            <Button variant="outline" onClick={() => { setStep(1); setVehicleReg(''); setVehicleMake(''); setVehicleColour(''); setCustomerEmail(''); setCustomerPhone(''); }}>
+            {(vehicleReg || paymentOrderId) && (
+              <p className="text-sm text-muted-foreground">
+                {vehicleReg && <>Vehicle: <span className="font-semibold text-foreground">{vehicleReg}</span></>}
+                {paymentOrderId && <><br />Order ID: <span className="font-mono text-xs text-foreground">{paymentOrderId.slice(0, 8)}...</span></>}
+              </p>
+            )}
+            <Button variant="outline" onClick={() => {
+              setStep(1);
+              setVehicleReg(''); setVehicleMake(''); setVehicleColour('');
+              setCustomerEmail(''); setCustomerPhone('');
+              window.history.replaceState({}, '', '/buy-package');
+            }}>
               Buy Another Package
+            </Button>
+          </div>
+        )}
+
+        {/* Step 5: Payment Cancelled */}
+        {step === 5 && (
+          <div className="text-center space-y-4 py-8">
+            <XCircle className="w-16 h-16 text-destructive mx-auto" />
+            <h2 className="text-2xl font-bold text-foreground">Payment Cancelled</h2>
+            <p className="text-muted-foreground">
+              Your payment was cancelled. No charges were made. You can try again if you'd like.
+            </p>
+            <Button onClick={() => {
+              setStep(1);
+              window.history.replaceState({}, '', '/buy-package');
+            }}>
+              Try Again
             </Button>
           </div>
         )}
