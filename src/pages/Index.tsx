@@ -509,6 +509,7 @@ const Index = () => {
                     { key: 'package_exterior_price', value: packageExteriorPrice },
                     { key: 'package_interior_price', value: packageInteriorPrice },
                     { key: 'pos_enabled', value: String(posEnabled) },
+                    { key: 'payfast_enabled', value: String(payfastEnabled) },
                     { key: 'payfast_merchant_id', value: payfastMerchantId },
                     { key: 'payfast_merchant_key', value: payfastMerchantKey },
                     { key: 'payfast_passphrase', value: payfastPassphrase },
