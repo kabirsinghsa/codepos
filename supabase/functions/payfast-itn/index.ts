@@ -1,8 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from 'https://deno.land/std@0.224.0/crypto/mod.ts'
+import { encodeHex } from 'https://deno.land/std@0.224.0/encoding/hex.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function md5(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input)
+  const hashBuffer = await crypto.subtle.digest('MD5', data)
+  return encodeHex(new Uint8Array(hashBuffer))
 }
 
 Deno.serve(async (req) => {
@@ -11,7 +19,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // PayFast sends ITN as application/x-www-form-urlencoded POST
     const body = await req.text()
     const params = new URLSearchParams(body)
     const pfData: Record<string, string> = {}
@@ -47,7 +54,6 @@ Deno.serve(async (req) => {
     const passphrase = settingsMap['payfast_passphrase'] || ''
     const receivedSignature = pfData['signature']
 
-    // Build signature string from all params except signature
     const signatureParams = Object.entries(pfData)
       .filter(([k]) => k !== 'signature')
       .map(([k, v]) => `${k}=${encodeURIComponent(v.trim()).replace(/%20/g, '+')}`)
@@ -57,17 +63,14 @@ Deno.serve(async (req) => {
       ? `${signatureParams}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`
       : signatureParams
 
-    const { Md5 } = await import("https://deno.land/std@0.224.0/hash/md5.ts")
-    const md5Hash = new Md5()
-    md5Hash.update(signatureInput)
-    const calculatedSignature = md5Hash.toString()
+    const calculatedSignature = await md5(signatureInput)
 
     if (calculatedSignature !== receivedSignature) {
       console.error('Signature mismatch:', { calculated: calculatedSignature, received: receivedSignature })
       return new Response('SIGNATURE_MISMATCH', { status: 400 })
     }
 
-    // Verify with PayFast server (optional but recommended)
+    // Verify with PayFast server
     const sandbox = settingsMap['payfast_sandbox'] === 'true'
     const pfHost = sandbox ? 'sandbox.payfast.co.za' : 'www.payfast.co.za'
 
@@ -84,7 +87,6 @@ Deno.serve(async (req) => {
       }
     } catch (verifyErr) {
       console.error('PayFast validation request failed:', verifyErr)
-      // Continue anyway - signature was valid
     }
 
     // Fetch the order
@@ -100,19 +102,16 @@ Deno.serve(async (req) => {
     }
 
     // Verify amount matches
-    if (Number(amountGross) !== Number(order.amount)) {
+    if (amountGross && Number(amountGross) !== Number(order.amount)) {
       console.error('Amount mismatch:', { expected: order.amount, received: amountGross })
       return new Response('AMOUNT_MISMATCH', { status: 400 })
     }
 
     if (paymentStatus === 'COMPLETE') {
-      // Payment successful - activate the package
       if (order.payment_status === 'activated') {
-        console.log('Order already activated:', orderId)
         return new Response('OK', { status: 200 })
       }
 
-      // Create the wash package
       const startDate = new Date()
       const endDate = new Date()
       endDate.setDate(endDate.getDate() + (order.duration_days || 30))
@@ -139,41 +138,35 @@ Deno.serve(async (req) => {
         return new Response('PACKAGE_CREATE_FAILED', { status: 500 })
       }
 
-      // Update order status
       await supabase
         .from('package_orders')
         .update({
           payment_status: 'activated',
           package_id: pkg.id,
-          payfast_payment_id: pfPaymentId,
+          payfast_payment_id: pfPaymentId || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId)
 
-      console.log('Package activated successfully:', { orderId, packageId: pkg.id })
+      console.log('Package activated:', { orderId, packageId: pkg.id })
     } else if (paymentStatus === 'CANCELLED') {
       await supabase
         .from('package_orders')
         .update({
           payment_status: 'cancelled',
-          payfast_payment_id: pfPaymentId,
+          payfast_payment_id: pfPaymentId || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId)
-
-      console.log('Payment cancelled for order:', orderId)
     } else {
-      // Other statuses (PENDING, etc.)
       await supabase
         .from('package_orders')
         .update({
           payment_status: 'paid',
-          payfast_payment_id: pfPaymentId,
+          payfast_payment_id: pfPaymentId || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId)
-
-      console.log('Payment status updated:', { orderId, status: paymentStatus })
     }
 
     return new Response('OK', { status: 200 })

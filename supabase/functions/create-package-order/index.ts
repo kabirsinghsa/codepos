@@ -1,65 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from 'https://deno.land/std@0.224.0/crypto/mod.ts'
+import { encodeHex } from 'https://deno.land/std@0.224.0/encoding/hex.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-function generatePayFastForm(order: any, settings: Record<string, string>): string {
-  const sandbox = settings['payfast_sandbox'] === 'true'
-  const baseUrl = sandbox
-    ? 'https://sandbox.payfast.co.za/eng/process'
-    : 'https://www.payfast.co.za/eng/process'
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-
-  const data: Record<string, string> = {
-    merchant_id: settings['payfast_merchant_id'],
-    merchant_key: settings['payfast_merchant_key'],
-    return_url: `${settings['buy_package_url'] || supabaseUrl.replace('.supabase.co', '.lovable.app')}/buy-package?payment=success&order_id=${order.id}`,
-    cancel_url: `${settings['buy_package_url'] || supabaseUrl.replace('.supabase.co', '.lovable.app')}/buy-package?payment=cancelled`,
-    notify_url: `${supabaseUrl}/functions/v1/payfast-itn`,
-    name_first: '',
-    email_address: order.customer_email,
-    cell_number: order.customer_phone,
-    m_payment_id: order.id,
-    amount: Number(order.amount).toFixed(2),
-    item_name: `Wash Package - ${order.package_type.replace(/_/g, ' ')} (${order.duration_days} days)`,
-    item_description: `Vehicle: ${order.vehicle_reg}`,
-  }
-
-  // Generate signature
-  const passphrase = settings['payfast_passphrase'] || ''
-  const paramString = Object.entries(data)
-    .filter(([_, v]) => v !== '')
-    .map(([k, v]) => `${k}=${encodeURIComponent(v.trim()).replace(/%20/g, '+')}`)
-    .join('&')
-
-  const signatureString = passphrase
-    ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`
-    : paramString
-
-  // MD5 hash
-  const encoder = new TextEncoder()
-  const hashBuffer = new Uint8Array(16)
-  // Use Web Crypto for MD5 is not available, so we'll use a simple approach
-  // PayFast requires MD5 - we'll compute it
-  const md5 = async (str: string): Promise<string> => {
-    // Deno has crypto.subtle but no MD5, so use a manual approach
-    const msgUint8 = new TextEncoder().encode(str)
-    // MD5 via a simple implementation for Deno
-    const { createHash } = await import("https://deno.land/std@0.224.0/crypto/crypto.ts")
-    // Actually let's use the standard crypto module
-    const hash = new (await import("https://deno.land/std@0.224.0/hash/md5.ts")).Md5()
-    hash.update(str)
-    return hash.toString()
-  }
-
-  return JSON.stringify({
-    payfast_url: baseUrl,
-    payfast_data: data,
-    signature_string: signatureString,
-  })
+async function md5(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input)
+  const hashBuffer = await crypto.subtle.digest('MD5', data)
+  return encodeHex(new Uint8Array(hashBuffer))
 }
 
 Deno.serve(async (req) => {
@@ -92,7 +43,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Create the order
     const { data: order, error } = await supabase
       .from('package_orders')
       .insert({
@@ -135,15 +85,13 @@ Deno.serve(async (req) => {
     const hasMerchantKey = !!settingsMap['payfast_merchant_key']
 
     if (payfastEnabled && hasMerchantId && hasMerchantKey) {
-      // Build PayFast redirect data
       const sandbox = settingsMap['payfast_sandbox'] === 'true'
       const payfastUrl = sandbox
         ? 'https://sandbox.payfast.co.za/eng/process'
         : 'https://www.payfast.co.za/eng/process'
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-      // We need the app's public URL for return/cancel - use the published URL from settings or construct it
-      const appUrl = settingsMap['app_url'] || 'https://codepos.lovable.app'
+      const appUrl = 'https://codepos.lovable.app'
 
       const pfData: Record<string, string> = {
         merchant_id: settingsMap['payfast_merchant_id'],
@@ -170,12 +118,7 @@ Deno.serve(async (req) => {
         ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`
         : paramString
 
-      // MD5 hash using Deno std
-      const { Md5 } = await import("https://deno.land/std@0.224.0/hash/md5.ts")
-      const md5Hash = new Md5()
-      md5Hash.update(signatureInput)
-      const signature = md5Hash.toString()
-
+      const signature = await md5(signatureInput)
       pfData['signature'] = signature
 
       return new Response(
@@ -190,7 +133,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // PayFast not enabled - just return order as pending
     return new Response(
       JSON.stringify({ success: true, order_id: order.id, payfast: false }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
