@@ -64,6 +64,7 @@ const Index = () => {
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
   const [posEnabled, setPosEnabled] = useState(false);
+  const [payfastEnabled, setPayfastEnabled] = useState(false);
   const [payfastMerchantId, setPayfastMerchantId] = useState('');
   const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
   const [payfastPassphrase, setPayfastPassphrase] = useState('');
@@ -89,6 +90,7 @@ const Index = () => {
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
           if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
+          if (row.key === 'payfast_enabled') setPayfastEnabled(row.value === 'true');
           if (row.key === 'payfast_merchant_id') setPayfastMerchantId(row.value);
           if (row.key === 'payfast_merchant_key') setPayfastMerchantKey(row.value);
           if (row.key === 'payfast_passphrase') setPayfastPassphrase(row.value);
@@ -427,8 +429,14 @@ const Index = () => {
                 </div>
               </div>
               <div className="sm:col-span-2 mt-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">PayFast Settings</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">PayFast Settings</h3>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={payfastEnabled} onChange={(e) => setPayfastEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
+                    <span className="text-sm font-medium text-foreground">Enable PayFast</span>
+                  </label>
+                </div>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${!payfastEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Merchant ID</label>
                     <Input value={payfastMerchantId} onChange={(e) => setPayfastMerchantId(e.target.value)} placeholder="e.g. 10000100" className="font-mono bg-secondary border-border" />
@@ -501,6 +509,7 @@ const Index = () => {
                     { key: 'package_exterior_price', value: packageExteriorPrice },
                     { key: 'package_interior_price', value: packageInteriorPrice },
                     { key: 'pos_enabled', value: String(posEnabled) },
+                    { key: 'payfast_enabled', value: String(payfastEnabled) },
                     { key: 'payfast_merchant_id', value: payfastMerchantId },
                     { key: 'payfast_merchant_key', value: payfastMerchantKey },
                     { key: 'payfast_passphrase', value: payfastPassphrase },
