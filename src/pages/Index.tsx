@@ -64,6 +64,7 @@ const Index = () => {
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
   const [posEnabled, setPosEnabled] = useState(false);
+  const [payfastEnabled, setPayfastEnabled] = useState(false);
   const [payfastMerchantId, setPayfastMerchantId] = useState('');
   const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
   const [payfastPassphrase, setPayfastPassphrase] = useState('');
@@ -89,6 +90,7 @@ const Index = () => {
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
           if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
+          if (row.key === 'payfast_enabled') setPayfastEnabled(row.value === 'true');
           if (row.key === 'payfast_merchant_id') setPayfastMerchantId(row.value);
           if (row.key === 'payfast_merchant_key') setPayfastMerchantKey(row.value);
           if (row.key === 'payfast_passphrase') setPayfastPassphrase(row.value);
