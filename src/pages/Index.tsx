@@ -104,15 +104,17 @@ const Index = () => {
   // Load active packages count
   useEffect(() => {
     const fetchActivePackages = async () => {
-      const { count } = await supabase
+      let query = supabase
         .from('wash_packages')
         .select('*', { count: 'exact', head: true })
         .eq('active', true)
         .gte('end_date', new Date().toISOString());
+      if (siteId) query = query.eq('site_id', siteId);
+      const { count } = await query;
       setActivePackagesCount(count || 0);
     };
     fetchActivePackages();
-  }, []);
+  }, [siteId]);
 
   // Load prices from database
   useEffect(() => {
