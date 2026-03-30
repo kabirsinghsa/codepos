@@ -454,6 +454,21 @@ const Reports = () => {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
           <FileText className="w-6 h-6 text-primary" />
           <h1 className="text-lg font-bold text-foreground">Reports</h1>
+          {isAdmin && sites.length > 0 && (
+            <select
+              value={selectedSiteFilter}
+              onChange={e => setSelectedSiteFilter(e.target.value)}
+              className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+            >
+              <option value="all">All Sites</option>
+              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          {!isAdmin && siteId && (
+            <span className="text-xs text-muted-foreground">
+              Site: {sites.find(s => s.id === siteId)?.name || 'Your site'}
+            </span>
+          )}
           <Link to="/" className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
