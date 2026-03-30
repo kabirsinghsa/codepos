@@ -243,20 +243,31 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          site_id: string | null
         }
         Insert: {
           approved?: boolean
           created_at?: string
           display_name?: string | null
           id: string
+          site_id?: string | null
         }
         Update: {
           approved?: boolean
           created_at?: string
           display_name?: string | null
           id?: string
+          site_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sites: {
         Row: {
@@ -343,6 +354,7 @@ export type Database = {
           plc_input: number
           price: number
           selected_extras: Json
+          site_id: string | null
           total_washes: number
           used: boolean
           used_at: string | null
@@ -359,6 +371,7 @@ export type Database = {
           plc_input?: number
           price?: number
           selected_extras?: Json
+          site_id?: string | null
           total_washes?: number
           used?: boolean
           used_at?: string | null
@@ -375,6 +388,7 @@ export type Database = {
           plc_input?: number
           price?: number
           selected_extras?: Json
+          site_id?: string | null
           total_washes?: number
           used?: boolean
           used_at?: string | null
@@ -382,7 +396,15 @@ export type Database = {
           wash_type?: Database["public"]["Enums"]["wash_type"]
           washes_used?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wash_codes_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wash_extras: {
         Row: {

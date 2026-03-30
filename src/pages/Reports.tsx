@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import PosReport from '@/components/PosReport';
+import { useAuth } from '@/hooks/useAuth';
 
 interface WashRecord {
   id: string;
@@ -362,6 +363,7 @@ const PackageWashReport = () => {
 };
 
 const Reports = () => {
+  const { isAdmin, siteId } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [dailyRecords, setDailyRecords] = useState<WashRecord[]>([]);
@@ -369,17 +371,32 @@ const Reports = () => {
   const [loadingDaily, setLoadingDaily] = useState(false);
   const [loadingMonthly, setLoadingMonthly] = useState(false);
   const [tab, setTab] = useState('daily');
+  const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
+  const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>('all');
+
+  // Effective site filter: staff locked to their site, admin can choose
+  const effectiveSiteId = isAdmin ? (selectedSiteFilter === 'all' ? null : selectedSiteFilter) : siteId;
+
+  useEffect(() => {
+    if (isAdmin) {
+      supabase.from('sites').select('id, name').eq('active', true).order('name').then(({ data }) => {
+        setSites((data as any[]) || []);
+      });
+    }
+  }, [isAdmin]);
 
   const fetchDaily = async (dateStr: string) => {
     setLoadingDaily(true);
     const dayStart = `${dateStr}T00:00:00.000Z`;
     const dayEnd = `${dateStr}T23:59:59.999Z`;
-    const { data } = await supabase
+    let query = supabase
       .from('wash_codes')
       .select('*')
       .gte('created_at', dayStart)
       .lte('created_at', dayEnd)
       .order('created_at', { ascending: false });
+    if (effectiveSiteId) query = query.eq('site_id', effectiveSiteId);
+    const { data } = await query;
     setDailyRecords((data as WashRecord[]) || []);
     setLoadingDaily(false);
   };
@@ -390,18 +407,20 @@ const Reports = () => {
     const start = `${monthStr}-01T00:00:00.000Z`;
     const lastDay = getDaysInMonth(new Date(year, mon - 1));
     const end = `${monthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
-    const { data } = await supabase
+    let query = supabase
       .from('wash_codes')
       .select('*')
       .gte('created_at', start)
       .lte('created_at', end)
       .order('created_at', { ascending: false });
+    if (effectiveSiteId) query = query.eq('site_id', effectiveSiteId);
+    const { data } = await query;
     setMonthlyRecords((data as WashRecord[]) || []);
     setLoadingMonthly(false);
   };
 
-  useEffect(() => { fetchDaily(date); }, [date]);
-  useEffect(() => { fetchMonthly(month); }, [month]);
+  useEffect(() => { fetchDaily(date); }, [date, effectiveSiteId]);
+  useEffect(() => { fetchMonthly(month); }, [month, effectiveSiteId]);
 
   const exportCSV = (records: WashRecord[], filename: string) => {
     const header = 'Code,Wash Type,Price,Phone,Status,Washes,Used,Created,Used At\n';
@@ -435,6 +454,21 @@ const Reports = () => {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
           <FileText className="w-6 h-6 text-primary" />
           <h1 className="text-lg font-bold text-foreground">Reports</h1>
+          {isAdmin && sites.length > 0 && (
+            <select
+              value={selectedSiteFilter}
+              onChange={e => setSelectedSiteFilter(e.target.value)}
+              className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+            >
+              <option value="all">All Sites</option>
+              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          {!isAdmin && siteId && (
+            <span className="text-xs text-muted-foreground">
+              Site: {sites.find(s => s.id === siteId)?.name || 'Your site'}
+            </span>
+          )}
           <Link to="/" className="ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>

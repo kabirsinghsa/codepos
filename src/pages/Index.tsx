@@ -37,7 +37,7 @@ const plcInputMap: Record<WashType, number> = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, siteId } = useAuth();
   const [codes, setCodes] = useState<WashCode[]>([]);
   const [selectedWash, setSelectedWash] = useState<WashType>('basic');
   const [selectedVehicle, setSelectedVehicle] = useState('small_medium');
@@ -104,15 +104,17 @@ const Index = () => {
   // Load active packages count
   useEffect(() => {
     const fetchActivePackages = async () => {
-      const { count } = await supabase
+      let query = supabase
         .from('wash_packages')
         .select('*', { count: 'exact', head: true })
         .eq('active', true)
         .gte('end_date', new Date().toISOString());
+      if (siteId) query = query.eq('site_id', siteId);
+      const { count } = await query;
       setActivePackagesCount(count || 0);
     };
     fetchActivePackages();
-  }, []);
+  }, [siteId]);
 
   // Load prices from database
   useEffect(() => {
@@ -135,11 +137,13 @@ const Index = () => {
 
   // Load codes from database
   const fetchCodes = useCallback(async () => {
-    const { data, error } = await supabase.
-    from('wash_codes').
-    select('*').
-    order('created_at', { ascending: false }).
-    limit(100);
+    let query = supabase
+      .from('wash_codes')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (siteId) query = query.eq('site_id', siteId);
+    const { data, error } = await query;
 
     if (error) {
       toast.error('Failed to load codes');
@@ -162,7 +166,7 @@ const Index = () => {
       })));
     }
     setLoading(false);
-  }, []);
+  }, [siteId]);
 
   useEffect(() => {
     fetchCodes();
@@ -233,6 +237,7 @@ const Index = () => {
         washes_used: 0,
         vehicle_type: selectedVehicle,
         selected_extras: selectedExtrasList,
+        site_id: siteId,
       } as any);
 
       if (error) {
@@ -250,7 +255,7 @@ const Index = () => {
     } finally {
       setGenerating(false);
     }
-  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity]);
+  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId]);
 
   const handleMarkUsed = useCallback(async (id: string) => {
     const code = codes.find((c) => c.id === id);

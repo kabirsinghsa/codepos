@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   approved: boolean | null;
   isAdmin: boolean;
+  siteId: string | null;
   signOut: () => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   approved: null,
   isAdmin: false,
+  siteId: null,
   signOut: async () => {},
 });
 
@@ -25,14 +27,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [approved, setApproved] = useState<boolean | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [siteId, setSiteId] = useState<string | null>(null);
 
-  const checkApproval = async (userId: string) => {
+  const checkProfile = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('approved')
+      .select('approved, site_id')
       .eq('id', userId)
       .single();
     setApproved(data?.approved ?? false);
+    setSiteId((data as any)?.site_id ?? null);
   };
 
   const checkAdmin = async (userId: string) => {
@@ -49,11 +53,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        checkApproval(session.user.id);
+        checkProfile(session.user.id);
         checkAdmin(session.user.id);
       } else {
         setApproved(null);
         setIsAdmin(false);
+        setSiteId(null);
       }
       setLoading(false);
     });
@@ -61,11 +66,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        checkApproval(session.user.id);
+        checkProfile(session.user.id);
         checkAdmin(session.user.id);
       } else {
         setApproved(null);
         setIsAdmin(false);
+        setSiteId(null);
       }
       setLoading(false);
     });
@@ -78,7 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, approved, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, approved, isAdmin, siteId, signOut }}>
       {children}
     </AuthContext.Provider>
   );
