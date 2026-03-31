@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car } from 'lucide-react';
+import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useSearchParams } from 'react-router-dom';
@@ -29,23 +29,24 @@ const Kiosk = () => {
   const [searchParams] = useSearchParams();
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
 
-  // Memoize site configuration to prevent accidental shifts
-  const config = useMemo(() => {
-    const rawId = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id') || '1';
+  // STRICT URL DETECTION - FORCE ERROR IF ID IS MISSING
+  const siteConfig = useMemo(() => {
+    const rawId = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
     const rawName = searchParams.get('site') || searchParams.get('Site');
 
-    const id = parseInt(rawId);
+    if (!rawId) return null;
 
-    // Default names if not in URL
-    let name = rawName;
+    const idNum = parseInt(rawId);
+    let name = rawName?.toUpperCase();
+
     if (!name) {
-      if (id === 1) name = 'HEAD OFFICE';
-      else if (id === 2) name = 'HUDDLE';
-      else if (id === 3) name = 'BOKSBURG';
+      if (idNum === 1) name = 'HEAD OFFICE';
+      else if (idNum === 2) name = 'HUDDLE';
+      else if (idNum === 3) name = 'BOKSBURG';
       else name = 'UNKNOWN SITE';
     }
 
-    return { id, name: name.toUpperCase() };
+    return { id: idNum, name };
   }, [searchParams]);
 
   const [bayState, setBayState] = useState<BayState>({
@@ -84,20 +85,17 @@ const Kiosk = () => {
   }, []);
 
   const validateCode = useCallback(async (code: string) => {
+    if (!siteConfig) return;
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: {
-          code,
-          site_id: config.id, // Explicit numeric ID
-          site_name: config.name
-        },
+        body: { code, site_id: siteConfig.id, site_name: siteConfig.name },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'Invalid code');
       } else {
-        toast.success(`Wash started for ${config.name}`);
+        toast.success(`Wash started at ${siteConfig.name}`);
         stopScanner();
       }
     } catch (err) {
@@ -105,24 +103,21 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [config, stopScanner]);
+  }, [siteConfig, stopScanner]);
 
   const validatePlate = useCallback(async (plate: string) => {
+    if (!siteConfig) return;
     setValidating(true);
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: {
-          plate,
-          site_name: config.name,
-          site_id: config.id // Explicit numeric ID
-        },
+        body: { plate, site_name: siteConfig.name, site_id: siteConfig.id },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'No active package found');
       } else {
-        toast.success(`Package verified for ${config.name}!`);
+        toast.success(`Wash started at ${siteConfig.name}`);
         setPackageInfo({ vehicle_reg: data.vehicle_reg, days_remaining: data.days_remaining });
       }
     } catch (err) {
@@ -130,7 +125,7 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [config]);
+  }, [siteConfig]);
 
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
@@ -149,31 +144,31 @@ const Kiosk = () => {
     }
   }, [validateCode]);
 
-  // Auto-reset bay status
   useEffect(() => {
-    if (bayState.status === 'washing') {
+    if (bayState.status === 'washing' && siteConfig) {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
-        }).eq('id', config.id);
+        }).eq('id', siteConfig.id);
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [bayState.status, config.id]);
+  }, [bayState.status, siteConfig]);
 
   useEffect(() => {
+    if (!siteConfig) return;
     if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
       startScanner();
     }
     if ((bayState.status !== 'idle' || mode !== 'code') && scanning) {
       stopScanner();
     }
-  }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
+  }, [bayState.status, mode, scanning, validating, startScanner, stopScanner, siteConfig]);
 
-  // Realtime subscription for THIS SPECIFIC SITE
   useEffect(() => {
+    if (!siteConfig) return;
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', config.id).maybeSingle();
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', siteConfig.id).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -185,9 +180,9 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel(`site-status-${config.id}`).on(
+    const channel = supabase.channel(`site-status-${siteConfig.id}`).on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${config.id}` },
+      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteConfig.id}` },
       (payload) => {
         const d = payload.new;
         setBayState({
@@ -201,7 +196,22 @@ const Kiosk = () => {
     ).subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [config.id]);
+  }, [siteConfig]);
+
+  if (!siteConfig) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <XCircle className="w-20 h-20 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold mb-2">KIOSK SETUP REQUIRED</h1>
+        <p className="text-muted-foreground mb-6 max-w-sm">This tablet is missing its Site ID configuration in the URL.</p>
+        <div className="p-4 bg-muted rounded-lg font-mono text-xs text-left">
+          Use these links for your sites:<br/><br/>
+          <strong>Huddle:</strong> /kiosk?site=Huddle&site_id=2<br/>
+          <strong>Boksburg:</strong> /kiosk?site=Boksburg&site_id=3
+        </div>
+      </div>
+    );
+  }
 
   const currentStatusConfig = statusConfig[bayState.status];
   const washLabel = bayState.current_wash_type
@@ -213,13 +223,12 @@ const Kiosk = () => {
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
 
-        {/* Verification Badges */}
         <div className="flex justify-center gap-2 -mt-4">
-          <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
-            {config.name}
+          <span className="px-4 py-1 bg-secondary text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
+            {siteConfig.name}
           </span>
-          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${config.id === 1 ? 'bg-blue-600' : config.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
-            BAY {config.id}
+          <span className={`px-4 py-1 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
+            BAY {siteConfig.id}
           </span>
         </div>
 
@@ -258,13 +267,13 @@ const Kiosk = () => {
         )}
 
         {packageInfo && bayState.status === 'washing' && (
-          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-bold shadow-lg">
+          <div className="inline-block px-8 py-2 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-bold shadow-lg">
             {packageInfo.vehicle_reg} • {packageInfo.days_remaining} days left
           </div>
         )}
 
         {washLabel && bayState.status === 'washing' && !packageInfo && (
-          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-black shadow-lg">
+          <div className="inline-block px-8 py-2 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-black shadow-lg">
             {washLabel}
           </div>
         )}
