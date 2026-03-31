@@ -28,44 +28,52 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setCameraActive(false);
     setScanning(false);
   }, []);
 
   const startCamera = useCallback(async () => {
     try {
-      // 1. Set camera as active first so the video element is rendered
+      // Clear any existing stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
       setCameraActive(true);
 
-      // 2. Request the stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
+      // Short delay to ensure video element is rendered
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.play().catch(err => console.error("Play error:", err));
+        }
+      }, 100);
 
-      // We'll use a useEffect to attach the stream once the video element is confirmed to exist
     } catch (err) {
       console.error('Camera access error:', err);
       setCameraActive(false);
-      toast.error('Could not access camera. Please grant permission.');
+      toast.error('Could not access camera. Please check permissions.');
     }
   }, []);
 
-  // Effect to attach the stream to the video element once it's rendered
-  useEffect(() => {
-    if (cameraActive && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(err => {
-        console.error("Video play error:", err);
-      });
-    }
-  }, [cameraActive]);
-
   const captureAndRecognize = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || scanning || disabled) return;
+    if (!videoRef.current || !canvasRef.current || scanning || disabled || !cameraActive) return;
 
     const video = videoRef.current;
-    // Check if video is actually playing and has dimensions
     if (video.readyState !== 4 || video.videoWidth === 0) return;
 
     const canvas = canvasRef.current;
@@ -102,9 +110,8 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     } finally {
       setScanning(false);
     }
-  }, [scanning, disabled, onPlateDetected, stopCamera]);
+  }, [scanning, disabled, onPlateDetected, stopCamera, cameraActive]);
 
-  // Auto-capture every 3 seconds while camera is active
   useEffect(() => {
     if (cameraActive && !disabled) {
       intervalRef.current = setInterval(captureAndRecognize, 3000);
@@ -114,7 +121,6 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     }
   }, [cameraActive, disabled, captureAndRecognize]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopCamera();
   }, [stopCamera]);
@@ -129,9 +135,8 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-sm mx-auto">
-      {/* Camera viewfinder */}
       {cameraActive ? (
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-4 border-primary/30 bg-black">
+        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-4 border-primary/30 bg-black shadow-2xl">
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
@@ -140,62 +145,52 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
             autoPlay
           />
           {scanning && (
-            <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <Loader2 className="w-10 h-10 animate-spin text-white" />
             </div>
           )}
-          <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
-            <span className="text-xs font-mono text-primary bg-background/70 px-2 py-1 rounded">
-              {scanning ? 'Reading plate...' : 'Point at plate'}
-            </span>
-            <button
-              onClick={stopCamera}
-              className="p-2 rounded-full bg-destructive/80 text-destructive-foreground"
-            >
-              <CameraOff className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={stopCamera}
+            className="absolute top-2 right-2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+          >
+            <CameraOff className="w-4 h-4" />
+          </button>
         </div>
       ) : (
         <button
           onClick={startCamera}
           disabled={disabled}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg hover:scale-105 transition-all"
         >
-          <Camera className="w-5 h-5" />
-          Scan Plate with Camera
+          <Camera className="w-6 h-6" />
+          Open License Plate Scanner
         </button>
       )}
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Manual fallback */}
-      <div className="flex items-center gap-2 text-muted-foreground text-xs">
+      <div className="flex items-center gap-2 text-muted-foreground text-xs w-full py-2">
         <div className="h-px flex-1 bg-border" />
-        <span>or enter manually</span>
+        <span>OR ENTER MANUALLY</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <div className="flex items-center gap-2 text-primary mb-1">
-        <Car className="w-5 h-5" />
-        <span className="text-sm font-semibold tracking-wide">Vehicle Registration</span>
-      </div>
       <Input
         value={plate}
         onChange={(e) => setPlate(e.target.value.toUpperCase())}
-        placeholder="e.g. CA 123-456"
-        className="font-mono text-2xl bg-secondary border-border uppercase text-center tracking-widest h-14"
+        placeholder="ENTER REG NUMBER"
+        className="font-mono text-2xl bg-secondary border-border uppercase text-center tracking-widest h-14 border-2"
         onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         disabled={disabled}
       />
       <Button
         onClick={handleSubmit}
         disabled={disabled || plate.trim().length < 3}
-        className="w-full h-12 text-lg font-semibold"
+        className="w-full h-14 text-lg font-bold"
         size="lg"
       >
-        {disabled ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-        {disabled ? 'Checking...' : 'Start Wash'}
+        {disabled ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Car className="w-5 h-5 mr-2" />}
+        {disabled ? 'CHECKING...' : 'START WASH'}
       </Button>
     </div>
   );
