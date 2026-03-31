@@ -133,7 +133,7 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, []);
+  }, [siteName]);
 
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
