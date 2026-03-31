@@ -21,14 +21,19 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    // Support multiple names for the site ID to be extremely safe
     const { plate, site_name } = body
-    const rawSiteId = body.site_id || body.id || body.bay || "1"
 
-    // Force targetBayId to be an integer
-    const targetBayId = parseInt(rawSiteId.toString()) || 1
+    // Support multiple incoming property names for the site ID
+    const rawSiteId = body.site_id || body.id || body.bay
 
-    console.log(`[WASH TRIGGER] Site: ${site_name}, Incoming ID: ${rawSiteId}, Target Bay: ${targetBayId}, Plate: ${plate}`)
+    // STRICT CHECK: If no ID is provided, we default to 1 but LOG A WARNING
+    if (!rawSiteId) {
+      console.warn("WARNING: No site_id provided in request. Defaulting to Bay 1.")
+    }
+
+    const targetBayId = rawSiteId ? parseInt(rawSiteId.toString()) : 1
+
+    console.log(`[TRIGGER] Bay: ${targetBayId} | Site: ${site_name} | Plate: ${plate}`)
 
     if (!plate || typeof plate !== 'string' || plate.trim().length < 3) {
       return new Response(
@@ -55,18 +60,9 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle()
 
-    if (error) {
-      console.error('DB Error:', error)
+    if (error || !pkg) {
       return new Response(
-        JSON.stringify({ valid: false, error: 'Database error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (!pkg) {
-      console.log(`No package found for: ${cleanPlate}`)
-      return new Response(
-        JSON.stringify({ valid: false, error: 'No active package found for this vehicle' }),
+        JSON.stringify({ valid: false, error: pkg ? 'Database error' : 'No active package found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -76,14 +72,13 @@ Deno.serve(async (req) => {
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
       wash_type: pkg.wash_type,
-      site_name: site_name || 'Unknown Site',
-      site_id: (rawSiteId.toString().length > 20) ? rawSiteId : null,
+      site_name: site_name || `Site ${targetBayId}`,
+      site_id: (rawSiteId && rawSiteId.toString().length > 20) ? rawSiteId : null,
     })
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
     // Open the correct gate
-    console.log(`UPDATING BAY ${targetBayId} status to 'washing'`)
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
@@ -93,18 +88,16 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', targetBayId) // Ensure we use the parsed targetBayId
+      .eq('id', targetBayId) // Crucial: This triggers the specific site
 
-    if (updateError) {
-      console.error('Relay Update Error:', updateError)
-    }
+    if (updateError) console.error('DB Update Error:', updateError)
 
     return new Response(
       JSON.stringify({
         valid: true,
         wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
-        days_remaining: Math.ceil((new Date(pkg.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        site_triggered: targetBayId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
