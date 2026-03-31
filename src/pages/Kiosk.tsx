@@ -53,13 +53,14 @@ const Kiosk = () => {
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
-  // Get site from URL param e.g. /kiosk?site=Huddle&site_id=2
+  // URL Parameter Detection (Case-Insensitive)
   const urlParams = new URLSearchParams(window.location.search);
-  const siteFromUrl = urlParams.get('site') || '';
-  const siteIdFromUrl = urlParams.get('site_id') || '1';
+  const siteFromUrl = urlParams.get('site') || urlParams.get('Site') || '';
+  const siteIdRaw = urlParams.get('site_id') || urlParams.get('siteId') || urlParams.get('id') || '1';
 
+  const siteIdNum = parseInt(siteIdRaw);
   const [siteName, setSiteName] = useState(siteFromUrl);
-  const [siteId, setSiteId] = useState(siteIdFromUrl);
+  const [siteId, setSiteId] = useState(siteIdNum);
 
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -110,14 +111,14 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code: cleanCode, site_id: parseInt(siteId), site_name: siteName },
+        body: { code: cleanCode, site_id: siteId, site_name: siteName || `Bay ${siteId}` },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'Invalid code');
         setTimeout(() => { lastScannedRef.current = null; }, 3000);
       } else {
-        toast.success(`${data.wash_type} wash started!`);
+        toast.success(`${data.wash_type} wash started at ${siteName || 'this site'}!`);
         stopScanner();
       }
     } catch (err) {
@@ -133,13 +134,13 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteName, site_id: parseInt(siteId) },
+        body: { plate, site_name: siteName || `Bay ${siteId}`, site_id: siteId },
       });
 
       if (error || !data?.valid) {
-        toast.error(data?.error || 'No active package for this vehicle');
+        toast.error(data?.error || 'No active package found');
       } else {
-        toast.success(`${data.wash_type} wash started for ${data.vehicle_reg}!`);
+        toast.success(`Package found! Wash started at ${siteName || 'this site'}.`);
         setPackageInfo({ vehicle_reg: data.vehicle_reg, days_remaining: data.days_remaining });
       }
     } catch (err) {
@@ -172,7 +173,7 @@ const Kiosk = () => {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
-        }).eq('id', parseInt(siteId));
+        }).eq('id', siteId);
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -188,9 +189,8 @@ const Kiosk = () => {
   }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
 
   useEffect(() => {
-    const targetId = parseInt(siteId);
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', targetId).maybeSingle();
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', siteId).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -202,9 +202,9 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel(`wash-bay-status-${siteId}`).on(
+    const channel = supabase.channel(`wash-status-site-${siteId}`).on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${targetId}` },
+      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteId}` },
       (payload) => {
         const d = payload.new;
         setBayState({
@@ -226,71 +226,69 @@ const Kiosk = () => {
     : null;
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none cursor-default`}>
+    <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
 
+        {/* Verification Badges */}
         <div className="flex justify-center gap-2 -mt-4">
-          <span className="px-3 py-1 bg-secondary text-foreground text-xs font-bold rounded-full border border-border uppercase">
-            {siteName || 'Unknown Site'}
+          <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
+            {siteName || 'HEAD OFFICE'}
           </span>
-          <span className="px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-full uppercase">
-            Bay {siteId}
+          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteId === 1 ? 'bg-blue-600' : siteId === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
+            BAY {siteId}
           </span>
         </div>
 
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
-            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
+            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
               {config.icon}
             </motion.div>
           </AnimatePresence>
         )}
 
-        <motion.h2 key={config.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-bold text-foreground tracking-wide">
+        <motion.h2 key={config.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight uppercase">
           {config.title}
         </motion.h2>
 
         {bayState.status === 'idle' && (
-          <div className="flex justify-center gap-2">
-            <button onClick={() => setMode('code')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'code' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
-              <QrCode className="w-5 h-5" /> Scan QR Code
+          <div className="flex justify-center gap-3">
+            <button onClick={() => setMode('code')} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'code' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
+              <QrCode className="w-5 h-5" /> SCAN CODE
             </button>
-            <button onClick={() => setMode('plate')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'plate' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
-              <Car className="w-5 h-5" /> Scan Reg Number
+            <button onClick={() => setMode('plate')} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'plate' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
+              <Car className="w-5 h-5" /> SCAN PLATE
             </button>
           </div>
         )}
 
         {bayState.status === 'idle' && mode === 'code' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
-            <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-2xl overflow-hidden border-4 border-primary/30 bg-black">
-              <div id={scannerContainerId} className="w-full h-full" />
-              {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
-            </div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-3xl overflow-hidden border-4 border-primary bg-black shadow-2xl">
+            <div id={scannerContainerId} className="w-full h-full" />
+            {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
           </motion.div>
         )}
 
         {bayState.status === 'idle' && mode === 'plate' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
-            {validating && <div className="mt-4 flex items-center justify-center gap-2 text-primary"><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm font-mono">Checking package...</span></div>}
           </motion.div>
         )}
 
         {packageInfo && bayState.status === 'washing' && (
-          <div className="inline-block px-6 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-lg font-semibold">
-            {packageInfo.vehicle_reg} • {packageInfo.days_remaining} days remaining
+          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-bold shadow-lg">
+            {packageInfo.vehicle_reg} • {packageInfo.days_remaining} days left
           </div>
         )}
 
         {washLabel && bayState.status === 'washing' && !packageInfo && (
-          <div className="inline-block px-6 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-xl font-semibold">
+          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-2xl font-black shadow-lg">
             {washLabel}
           </div>
         )}
 
-        <p className="text-xl text-muted-foreground">{config.subtitle}</p>
+        <p className="text-xl text-muted-foreground font-medium">{config.subtitle}</p>
       </div>
       <Footer />
     </div>
