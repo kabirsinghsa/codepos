@@ -76,6 +76,7 @@ const Kiosk = () => {
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
+          // Only overwrite siteName if it wasn't provided in the URL
           if (row.key === 'site_name' && !siteFromUrl) setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
@@ -111,7 +112,7 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code: cleanCode, site_id: siteId },
+        body: { code: cleanCode, site_id: siteId, site_name: siteName },
       });
 
       if (error || !data?.valid) {
@@ -127,10 +128,9 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [siteId, stopScanner]);
+  }, [siteId, siteName, stopScanner]);
 
   const validatePlate = useCallback(async (plate: string) => {
-    console.log(`Sending validation for Site: ${siteName}, ID: ${siteId}`);
     setValidating(true);
     setPackageInfo(null);
     try {
@@ -176,7 +176,7 @@ const Kiosk = () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
         }).eq('id', parseInt(siteId));
-      }, 3000);
+      }, 3000); // 3 seconds as requested
       return () => clearTimeout(timer);
     }
   }, [bayState.status, siteId]);
@@ -194,8 +194,14 @@ const Kiosk = () => {
   // Realtime subscription
   useEffect(() => {
     const targetId = parseInt(siteId);
+
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', targetId).maybeSingle();
+      const { data } = await supabase
+        .from('wash_bay_status')
+        .select('*')
+        .eq('id', targetId)
+        .maybeSingle();
+
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -273,7 +279,9 @@ const Kiosk = () => {
             <button
               onClick={() => setMode('code')}
               className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                mode === 'code' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'
+                mode === 'code'
+                  ? 'bg-primary text-primary-foreground shadow-lg'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
             >
               <QrCode className="w-5 h-5" />
@@ -283,7 +291,9 @@ const Kiosk = () => {
               <button
                 onClick={() => setMode('plate')}
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  mode === 'plate' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  mode === 'plate'
+                    ? 'bg-primary text-primary-foreground shadow-lg'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Car className="w-5 h-5" />
@@ -307,22 +317,14 @@ const Kiosk = () => {
                 </div>
               )}
             </div>
-            {scanning ? (
-              <div className="flex items-center gap-2 text-primary">
-                <Camera className="w-5 h-5" />
-                <span className="text-sm font-mono">Camera Active — Point at QR Code</span>
-              </div>
-            ) : (
-              <button onClick={startScanner} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">
-                <CameraOff className="w-4 h-4" />
-                Enable Camera
-              </button>
-            )}
           </motion.div>
         )}
 
         {bayState.status === 'idle' && mode === 'plate' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
             <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
             {validating && (
               <div className="mt-4 flex items-center justify-center gap-2 text-primary">
