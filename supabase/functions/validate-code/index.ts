@@ -37,8 +37,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { code, site_id } = await req.json()
-    const targetBayId = site_id ? parseInt(site_id.toString()) : 1;
+    const body = await req.json()
+    const { code, site_id } = body
+
+    // Determine which bay to trigger based on the Kiosk's site_id
+    const targetBayId = site_id ? parseInt(site_id.toString()) : 1
+    console.log(`[Code Validation] Bay: ${targetBayId}, Code: ${code}`)
 
     if (!code || typeof code !== 'string' || code.length !== 6) {
       return new Response(
@@ -75,7 +79,6 @@ Deno.serve(async (req) => {
       if (masterUrl) {
         const masterResult = await tryMasterSiteValidation(masterUrl, code)
         if (masterResult?.valid) {
-          // Master validated the package code - update local wash bay
           await supabase
             .from('wash_bay_status')
             .update({
@@ -85,18 +88,11 @@ Deno.serve(async (req) => {
               started_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
-            .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
+            .eq('id', targetBayId)
 
           return new Response(
             JSON.stringify(masterResult),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-        // If master returned a specific error, pass it through
-        if (masterResult?.error && masterResult.error !== 'Package code not found or expired') {
-          return new Response(
-            JSON.stringify({ valid: false, error: masterResult.error }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
       }
@@ -107,64 +103,34 @@ Deno.serve(async (req) => {
       )
     }
 
-    const totalWashes = washCode.total_washes ?? 1
-    const washesUsed = washCode.washes_used ?? 0
-
-    // Check if code is fully used
-    if (totalWashes <= 1 && washCode.used) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Code already used' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (totalWashes > 1 && washesUsed >= totalWashes) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'All washes used up' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Update usage
-    const newWashesUsed = washesUsed + 1
-    const isFullyUsed = totalWashes <= 1 || newWashesUsed >= totalWashes
-
+    // Update usage and trigger the local bay
     const { error: updateError } = await supabase
       .from('wash_codes')
       .update({
-        washes_used: newWashesUsed,
-        used: isFullyUsed,
-        used_at: isFullyUsed ? new Date().toISOString() : washCode.used_at,
+        washes_used: (washCode.washes_used || 0) + 1,
+        used: (washCode.total_washes || 1) <= ((washCode.washes_used || 0) + 1),
+        used_at: new Date().toISOString(),
       })
       .eq('id', washCode.id)
 
-    if (updateError) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Failed to mark code as used' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!updateError) {
+      await supabase
+        .from('wash_bay_status')
+        .update({
+          status: 'washing',
+          current_wash_type: washCode.wash_type,
+          current_code: washCode.code,
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetBayId)
     }
-
-    // Update wash bay status to 'washing' for the specific site
-    await supabase
-      .from('wash_bay_status')
-      .update({
-        status: 'washing',
-        current_wash_type: washCode.wash_type,
-        current_code: washCode.code,
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
 
     return new Response(
       JSON.stringify({
         valid: true,
         wash_type: washCode.wash_type,
-        plc_input: washCode.plc_input,
         code: washCode.code,
-        washes_remaining: totalWashes > 1 ? totalWashes - newWashesUsed : 0,
-        total_washes: totalWashes,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
