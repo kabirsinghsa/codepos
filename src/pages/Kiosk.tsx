@@ -89,7 +89,11 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code, site_id: siteConfig.id, site_name: siteConfig.name },
+        body: {
+          code,
+          site_id: siteConfig.id,
+          site_name: siteConfig.name
+        },
       });
 
       if (error || !data?.valid) {
@@ -111,7 +115,11 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteConfig.name, site_id: siteConfig.id },
+        body: {
+          plate,
+          site_name: siteConfig.name,
+          site_id: siteConfig.id
+        },
       });
 
       if (error || !data?.valid) {
@@ -224,10 +232,10 @@ const Kiosk = () => {
         <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
 
         <div className="flex justify-center gap-2 -mt-4">
-          <span className="px-4 py-1 bg-secondary text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
+          <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
             {siteConfig.name}
           </span>
-          <span className={`px-4 py-1 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
+          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : siteConfig.id === 3 ? 'bg-purple-600' : 'bg-gray-600'}`}>
             BAY {siteConfig.id}
           </span>
         </div>
