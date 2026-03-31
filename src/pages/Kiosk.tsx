@@ -50,9 +50,13 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
-  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
+
+  // Get site from URL param e.g. /kiosk?site=Main%20Branch
+  const urlParams = new URLSearchParams(window.location.search);
+  const siteFromUrl = urlParams.get('site') || '';
+  const [siteName, setSiteName] = useState(siteFromUrl);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
