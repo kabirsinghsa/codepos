@@ -21,9 +21,14 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { plate, site_name, site_id } = body
+    // Support multiple names for the site ID to be extremely safe
+    const { plate, site_name } = body
+    const rawSiteId = body.site_id || body.id || body.bay || "1"
 
-    console.log(`[Validation Request] Site: ${site_name}, ID: ${site_id}, Plate: ${plate}`)
+    // Force targetBayId to be an integer
+    const targetBayId = parseInt(rawSiteId.toString()) || 1
+
+    console.log(`[WASH TRIGGER] Site: ${site_name}, Incoming ID: ${rawSiteId}, Target Bay: ${targetBayId}, Plate: ${plate}`)
 
     if (!plate || typeof plate !== 'string' || plate.trim().length < 3) {
       return new Response(
@@ -66,22 +71,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Determine target hardware bay (1, 2, or 3)
-    const targetBayId = site_id ? parseInt(site_id.toString()) : 1
-    console.log(`Triggering Hardware Bay: ${targetBayId} for ${site_name}`)
-
     // Log the wash
     await supabase.from('package_wash_logs').insert({
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
       wash_type: pkg.wash_type,
       site_name: site_name || 'Unknown Site',
-      site_id: (site_id && site_id.toString().length > 20) ? site_id : null,
+      site_id: (rawSiteId.toString().length > 20) ? rawSiteId : null,
     })
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
     // Open the correct gate
+    console.log(`UPDATING BAY ${targetBayId} status to 'washing'`)
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
@@ -91,7 +93,7 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
+      .eq('id', targetBayId) // Ensure we use the parsed targetBayId
 
     if (updateError) {
       console.error('Relay Update Error:', updateError)
