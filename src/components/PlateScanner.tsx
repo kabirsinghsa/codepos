@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Car, Loader2, Camera, CameraOff } from 'lucide-react';
+import { Car, Loader2, Camera, CameraOff, CameraIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +18,7 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
@@ -37,24 +38,16 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
 
   const startCamera = useCallback(async () => {
     try {
-      // Clear any existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
 
-      const constraints = {
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
       streamRef.current = stream;
       setCameraActive(true);
 
-      // Short delay to ensure video element is rendered
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -62,15 +55,41 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
           videoRef.current.play().catch(err => console.error("Play error:", err));
         }
       }, 100);
-
     } catch (err) {
       console.error('Camera access error:', err);
-      setCameraActive(false);
-      toast.error('Could not access camera. Please check permissions.');
+      toast.error('Live camera failed. Try the "Snap Photo" button.');
     }
   }, []);
 
-  const captureAndRecognize = useCallback(async () => {
+  const processImage = async (blob: Blob) => {
+    setScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('upload', blob, 'plate.jpg');
+
+      const { data, error } = await supabase.functions.invoke('recognize-plate', {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      if (data.plate && data.score > 0.5) {
+        setPlate(data.plate);
+        toast.success(`Plate detected: ${data.plate}`);
+        stopCamera();
+        onPlateDetected(data.plate);
+      } else {
+        toast.error('Could not read plate clearly. Please try again or enter manually.');
+      }
+    } catch (err) {
+      console.error('Plate recognition error:', err);
+      toast.error('Recognition failed. Please try manual entry.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const captureFrame = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || scanning || disabled || !cameraActive) return;
 
     const video = videoRef.current;
@@ -83,43 +102,27 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
 
-    setScanning(true);
-    try {
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/jpeg', 0.8)
-      );
-      if (!blob) return;
-
-      const formData = new FormData();
-      formData.append('upload', blob, 'plate.jpg');
-
-      const { data, error } = await supabase.functions.invoke('recognize-plate', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      if (data.plate && data.score > 0.6) {
-        setPlate(data.plate);
-        toast.success(`Plate detected: ${data.plate}`);
-        stopCamera();
-        onPlateDetected(data.plate);
-      }
-    } catch (err) {
-      console.error('Plate recognition error:', err);
-    } finally {
-      setScanning(false);
-    }
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.8)
+    );
+    if (blob) processImage(blob);
   }, [scanning, disabled, onPlateDetected, stopCamera, cameraActive]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImage(file);
+    }
+  };
 
   useEffect(() => {
     if (cameraActive && !disabled) {
-      intervalRef.current = setInterval(captureAndRecognize, 3000);
+      intervalRef.current = setInterval(captureFrame, 3000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
     }
-  }, [cameraActive, disabled, captureAndRecognize]);
+  }, [cameraActive, disabled, captureFrame]);
 
   useEffect(() => {
     return () => stopCamera();
@@ -135,6 +138,16 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-sm mx-auto">
+      {/* Hidden file input for native camera trigger */}
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileUpload}
+        className="hidden"
+        ref={fileInputRef}
+      />
+
       {cameraActive ? (
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-4 border-primary/30 bg-black shadow-2xl">
           <video
@@ -157,14 +170,26 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
           </button>
         </div>
       ) : (
-        <button
-          onClick={startCamera}
-          disabled={disabled}
-          className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg hover:scale-105 transition-all"
-        >
-          <Camera className="w-6 h-6" />
-          Open License Plate Scanner
-        </button>
+        <div className="grid grid-cols-2 gap-3 w-full">
+          <Button
+            onClick={startCamera}
+            disabled={disabled}
+            variant="outline"
+            className="h-20 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 hover:bg-secondary transition-all"
+          >
+            <Camera className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Live Scan</span>
+          </Button>
+
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className="h-20 flex flex-col items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
+          >
+            <CameraIcon className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Snap Photo</span>
+          </Button>
+        </div>
       )}
 
       <canvas ref={canvasRef} className="hidden" />
@@ -178,19 +203,19 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       <Input
         value={plate}
         onChange={(e) => setPlate(e.target.value.toUpperCase())}
-        placeholder="ENTER REG NUMBER"
+        placeholder="ABC 123 GP"
         className="font-mono text-2xl bg-secondary border-border uppercase text-center tracking-widest h-14 border-2"
         onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-        disabled={disabled}
+        disabled={disabled || scanning}
       />
       <Button
         onClick={handleSubmit}
-        disabled={disabled || plate.trim().length < 3}
+        disabled={disabled || plate.trim().length < 3 || scanning}
         className="w-full h-14 text-lg font-bold"
         size="lg"
       >
-        {disabled ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Car className="w-5 h-5 mr-2" />}
-        {disabled ? 'CHECKING...' : 'START WASH'}
+        {scanning ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Car className="w-5 h-5 mr-2" />}
+        {scanning ? 'SCANNING...' : 'START WASH'}
       </Button>
     </div>
   );
