@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,10 +29,24 @@ const Kiosk = () => {
   const [searchParams] = useSearchParams();
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
 
-  // STRICT URL DETECTION
-  const siteName = searchParams.get('site') || searchParams.get('Site') || 'HEAD OFFICE';
-  const siteIdStr = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
-  const siteId = siteIdStr ? parseInt(siteIdStr) : 1;
+  // Memoize site configuration to prevent accidental shifts
+  const config = useMemo(() => {
+    const rawId = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id') || '1';
+    const rawName = searchParams.get('site') || searchParams.get('Site');
+
+    const id = parseInt(rawId);
+
+    // Default names if not in URL
+    let name = rawName;
+    if (!name) {
+      if (id === 1) name = 'HEAD OFFICE';
+      else if (id === 2) name = 'HUDDLE';
+      else if (id === 3) name = 'BOKSBURG';
+      else name = 'UNKNOWN SITE';
+    }
+
+    return { id, name: name.toUpperCase() };
+  }, [searchParams]);
 
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -73,13 +87,17 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code, site_id: siteId, site_name: siteName },
+        body: {
+          code,
+          site_id: config.id, // Explicit numeric ID
+          site_name: config.name
+        },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'Invalid code');
       } else {
-        toast.success(`Wash started at ${siteName}`);
+        toast.success(`Wash started for ${config.name}`);
         stopScanner();
       }
     } catch (err) {
@@ -87,20 +105,24 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [siteId, siteName, stopScanner]);
+  }, [config, stopScanner]);
 
   const validatePlate = useCallback(async (plate: string) => {
     setValidating(true);
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteName, site_id: siteId },
+        body: {
+          plate,
+          site_name: config.name,
+          site_id: config.id // Explicit numeric ID
+        },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'No active package found');
       } else {
-        toast.success(`Wash started at ${siteName}`);
+        toast.success(`Package verified for ${config.name}!`);
         setPackageInfo({ vehicle_reg: data.vehicle_reg, days_remaining: data.days_remaining });
       }
     } catch (err) {
@@ -108,7 +130,7 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [siteName, siteId]);
+  }, [config]);
 
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
@@ -127,16 +149,17 @@ const Kiosk = () => {
     }
   }, [validateCode]);
 
+  // Auto-reset bay status
   useEffect(() => {
     if (bayState.status === 'washing') {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
-        }).eq('id', siteId);
+        }).eq('id', config.id);
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [bayState.status, siteId]);
+  }, [bayState.status, config.id]);
 
   useEffect(() => {
     if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
@@ -147,9 +170,10 @@ const Kiosk = () => {
     }
   }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
 
+  // Realtime subscription for THIS SPECIFIC SITE
   useEffect(() => {
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', siteId).maybeSingle();
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', config.id).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -161,9 +185,9 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel(`wash-status-${siteId}`).on(
+    const channel = supabase.channel(`site-status-${config.id}`).on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteId}` },
+      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${config.id}` },
       (payload) => {
         const d = payload.new;
         setBayState({
@@ -177,37 +201,38 @@ const Kiosk = () => {
     ).subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [siteId]);
+  }, [config.id]);
 
-  const config = statusConfig[bayState.status];
+  const currentStatusConfig = statusConfig[bayState.status];
   const washLabel = bayState.current_wash_type
     ? bayState.current_wash_type.charAt(0).toUpperCase() + bayState.current_wash_type.slice(1) + ' Wash'
     : null;
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none`}>
+    <div className={`min-h-screen bg-gradient-to-b ${currentStatusConfig.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
 
+        {/* Verification Badges */}
         <div className="flex justify-center gap-2 -mt-4">
           <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
-            {siteName}
+            {config.name}
           </span>
-          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteId === 1 ? 'bg-blue-600' : siteId === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
-            BAY {siteId}
+          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${config.id === 1 ? 'bg-blue-600' : config.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
+            BAY {config.id}
           </span>
         </div>
 
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
-            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
-              {config.icon}
+            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${currentStatusConfig.pulse ? 'animate-pulse' : ''}`}>
+              {currentStatusConfig.icon}
             </motion.div>
           </AnimatePresence>
         )}
 
-        <motion.h2 key={config.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight uppercase">
-          {config.title}
+        <motion.h2 key={currentStatusConfig.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight uppercase">
+          {currentStatusConfig.title}
         </motion.h2>
 
         {bayState.status === 'idle' && (
@@ -244,7 +269,7 @@ const Kiosk = () => {
           </div>
         )}
 
-        <p className="text-xl text-muted-foreground font-medium">{config.subtitle}</p>
+        <p className="text-xl text-muted-foreground font-medium">{currentStatusConfig.subtitle}</p>
       </div>
       <Footer />
     </div>

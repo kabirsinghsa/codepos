@@ -23,19 +23,19 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { plate, site_name } = body
 
-    // EXTREMELY STRICT ID DETECTION
-    // Prioritize site_id, fallback to id, default to 1 ONLY if logging shows it's missing
-    const rawId = body.site_id || body.id || body.bay
-    const targetBayId = rawId ? parseInt(rawId.toString()) : 1
+    // NO DEFAULTS: If site_id is missing, the request is invalid.
+    const rawId = body.site_id || body.id;
 
-    console.log(`[STRICT TRIGGER] Bay: ${targetBayId} | Site: ${site_name} | Plate: ${plate}`)
-
-    if (!plate || typeof plate !== 'string' || plate.trim().length < 3) {
+    if (!rawId) {
+      console.error("CRITICAL ERROR: No site_id provided in request body", body)
       return new Response(
-        JSON.stringify({ valid: false, error: 'Invalid plate format' }),
+        JSON.stringify({ valid: false, error: 'Configuration Error: Site ID is missing. Check your URL.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const targetBayId = parseInt(rawId.toString())
+    console.log(`[STRICT ACTION] Bay: ${targetBayId} | Site: ${site_name} | Plate: ${plate}`)
 
     const cleanPlate = plate.toUpperCase().replace(/\s+/g, ' ').trim()
     const supabase = createClient(
@@ -62,22 +62,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Determine what to save in the log site_id (must be UUID if present)
-    const logSiteId = (rawId && rawId.toString().length > 20) ? rawId : null
-
-    // Log the wash
-    await supabase.from('package_wash_logs').insert({
-      package_id: pkg.id,
-      vehicle_reg: cleanPlate,
-      wash_type: pkg.wash_type,
-      site_name: site_name || `Site ${targetBayId}`,
-      site_id: logSiteId,
-    })
-
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
-    // OPEN THE GATE
-    // We use eq('id', targetBayId) to only affect the specific site
+    // Open the correct gate strictly by ID
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
@@ -89,19 +76,33 @@ Deno.serve(async (req) => {
       })
       .eq('id', targetBayId)
 
-    if (updateError) console.error('DB UPDATE ERROR:', updateError)
+    if (updateError) {
+      console.error('DB ERROR:', updateError)
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Failed to update bay status' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Log the wash
+    await supabase.from('package_wash_logs').insert({
+      package_id: pkg.id,
+      vehicle_reg: cleanPlate,
+      wash_type: pkg.wash_type,
+      site_name: site_name || `Bay ${targetBayId}`,
+      site_id: (rawId.toString().length > 20) ? rawId : null,
+    })
 
     return new Response(
       JSON.stringify({
         valid: true,
         wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
-        site_triggered: targetBayId
+        bay_triggered: targetBayId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
-    console.error('SERVER ERROR:', err)
     return new Response(
       JSON.stringify({ valid: false, error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
