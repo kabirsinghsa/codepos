@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import Footer from '@/components/Footer';
 import PlateScanner from '@/components/PlateScanner';
@@ -18,49 +19,20 @@ interface BayState {
 }
 
 const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; subtitle: string; bg: string; pulse: boolean }> = {
-  idle: {
-    icon: <Droplets className="w-24 h-24" />,
-    title: 'READY',
-    subtitle: 'Choose your scan method below',
-    bg: 'from-primary/20 to-background',
-    pulse: true,
-  },
-  washing: {
-    icon: <Loader2 className="w-24 h-24 animate-spin" />,
-    title: 'WASHING IN PROGRESS',
-    subtitle: 'Please wait while your vehicle is being washed',
-    bg: 'from-blue-500/20 to-background',
-    pulse: false,
-  },
-  complete: {
-    icon: <CheckCircle className="w-24 h-24" />,
-    title: 'WASH COMPLETE',
-    subtitle: 'Thank you! Your vehicle is ready',
-    bg: 'from-green-500/20 to-background',
-    pulse: false,
-  },
-  error: {
-    icon: <AlertTriangle className="w-24 h-24" />,
-    title: 'ERROR',
-    subtitle: 'Please see an attendant for assistance',
-    bg: 'from-destructive/20 to-background',
-    pulse: false,
-  },
+  idle: { icon: <Droplets className="w-24 h-24" />, title: 'READY', subtitle: 'Choose your scan method below', bg: 'from-primary/20 to-background', pulse: true },
+  washing: { icon: <Loader2 className="w-24 h-24 animate-spin" />, title: 'WASHING IN PROGRESS', subtitle: 'Please wait while your vehicle is being washed', bg: 'from-blue-500/20 to-background', pulse: false },
+  complete: { icon: <CheckCircle className="w-24 h-24" />, title: 'WASH COMPLETE', subtitle: 'Thank you! Your vehicle is ready', bg: 'from-green-500/20 to-background', pulse: false },
+  error: { icon: <AlertTriangle className="w-24 h-24" />, title: 'ERROR', subtitle: 'Please see an attendant for assistance', bg: 'from-destructive/20 to-background', pulse: false },
 };
 
 const Kiosk = () => {
+  const [searchParams] = useSearchParams();
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
-  const [packagesEnabled, setPackagesEnabled] = useState(false);
-  const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
-  // URL Parameter Detection (Case-Insensitive)
-  const urlParams = new URLSearchParams(window.location.search);
-  const siteFromUrl = urlParams.get('site') || urlParams.get('Site') || '';
-  const siteIdRaw = urlParams.get('site_id') || urlParams.get('siteId') || urlParams.get('id') || '1';
-
-  const siteIdNum = parseInt(siteIdRaw);
-  const [siteName, setSiteName] = useState(siteFromUrl);
-  const [siteId, setSiteId] = useState(siteIdNum);
+  // STRICT URL DETECTION
+  const siteName = searchParams.get('site') || searchParams.get('Site') || 'HEAD OFFICE';
+  const siteIdStr = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
+  const siteId = siteIdStr ? parseInt(siteIdStr) : 1;
 
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -76,19 +48,15 @@ const Kiosk = () => {
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
-          if (row.key === 'site_name' && !siteFromUrl) setSiteName(row.value);
-          if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
-          if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
       }
     });
-  }, [siteFromUrl]);
+  }, []);
 
   const [scanning, setScanning] = useState(false);
   const [validating, setValidating] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-scanner';
-  const lastScannedRef = useRef<string | null>(null);
 
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
@@ -102,28 +70,20 @@ const Kiosk = () => {
   }, []);
 
   const validateCode = useCallback(async (code: string) => {
-    const match = code.match(/\d{6}/);
-    const cleanCode = match ? match[0] : code;
-
-    if (lastScannedRef.current === cleanCode) return;
-    lastScannedRef.current = cleanCode;
-
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code: cleanCode, site_id: siteId, site_name: siteName || `Bay ${siteId}` },
+        body: { code, site_id: siteId, site_name: siteName },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'Invalid code');
-        setTimeout(() => { lastScannedRef.current = null; }, 3000);
       } else {
-        toast.success(`${data.wash_type} wash started at ${siteName || 'this site'}!`);
+        toast.success(`Wash started at ${siteName}`);
         stopScanner();
       }
     } catch (err) {
       toast.error('Failed to validate code');
-      setTimeout(() => { lastScannedRef.current = null; }, 3000);
     } finally {
       setValidating(false);
     }
@@ -134,13 +94,13 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteName || `Bay ${siteId}`, site_id: siteId },
+        body: { plate, site_name: siteName, site_id: siteId },
       });
 
       if (error || !data?.valid) {
         toast.error(data?.error || 'No active package found');
       } else {
-        toast.success(`Package found! Wash started at ${siteName || 'this site'}.`);
+        toast.success(`Wash started at ${siteName}`);
         setPackageInfo({ vehicle_reg: data.vehicle_reg, days_remaining: data.days_remaining });
       }
     } catch (err) {
@@ -163,7 +123,6 @@ const Kiosk = () => {
       );
       setScanning(true);
     } catch (err) {
-      toast.error('Could not access camera.');
       scannerRef.current = null;
     }
   }, [validateCode]);
@@ -202,7 +161,7 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel(`wash-status-site-${siteId}`).on(
+    const channel = supabase.channel(`wash-status-${siteId}`).on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteId}` },
       (payload) => {
@@ -228,12 +187,11 @@ const Kiosk = () => {
   return (
     <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
-        <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
+        <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
 
-        {/* Verification Badges */}
         <div className="flex justify-center gap-2 -mt-4">
           <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
-            {siteName || 'HEAD OFFICE'}
+            {siteName}
           </span>
           <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteId === 1 ? 'bg-blue-600' : siteId === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
             BAY {siteId}
@@ -242,7 +200,7 @@ const Kiosk = () => {
 
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
-            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
+            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
               {config.icon}
             </motion.div>
           </AnimatePresence>
@@ -264,16 +222,14 @@ const Kiosk = () => {
         )}
 
         {bayState.status === 'idle' && mode === 'code' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-3xl overflow-hidden border-4 border-primary bg-black shadow-2xl">
+          <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-3xl overflow-hidden border-4 border-primary bg-black shadow-2xl">
             <div id={scannerContainerId} className="w-full h-full" />
             {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
-          </motion.div>
+          </div>
         )}
 
         {bayState.status === 'idle' && mode === 'plate' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
-          </motion.div>
+          <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
         )}
 
         {packageInfo && bayState.status === 'washing' && (
@@ -283,7 +239,7 @@ const Kiosk = () => {
         )}
 
         {washLabel && bayState.status === 'washing' && !packageInfo && (
-          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-2xl font-black shadow-lg">
+          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-black shadow-lg">
             {washLabel}
           </div>
         )}
