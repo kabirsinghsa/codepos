@@ -53,7 +53,7 @@ const Kiosk = () => {
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
-  // Get site from URL param e.g. /kiosk?site=Main%20Branch&site_id=2
+  // Get site from URL param e.g. /kiosk?site=Huddle&site_id=2
   const urlParams = new URLSearchParams(window.location.search);
   const siteFromUrl = urlParams.get('site') || '';
   const siteIdFromUrl = urlParams.get('site_id') || '1';
@@ -90,6 +90,17 @@ const Kiosk = () => {
   const scannerContainerId = 'qr-scanner';
   const lastScannedRef = useRef<string | null>(null);
 
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch {}
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  }, []);
+
   const validateCode = useCallback(async (code: string) => {
     const match = code.match(/\d{6}/);
     const cleanCode = match ? match[0] : code;
@@ -116,9 +127,10 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [siteId]);
+  }, [siteId, stopScanner]);
 
   const validatePlate = useCallback(async (plate: string) => {
+    console.log(`Sending validation for Site: ${siteName}, ID: ${siteId}`);
     setValidating(true);
     setPackageInfo(null);
     try {
@@ -157,30 +169,19 @@ const Kiosk = () => {
     }
   }, [validateCode]);
 
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch {}
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  }, []);
-
-  // Auto-reset after washing - changed to 3 seconds as requested
+  // Auto-reset after washing
   useEffect(() => {
     if (bayState.status === 'washing') {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
         }).eq('id', parseInt(siteId));
-      }, 3000); // 3 seconds
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [bayState.status, siteId]);
 
-  // Auto-start scanner when idle in code mode (or both mode)
+  // Auto-start scanner when idle
   useEffect(() => {
     if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
       startScanner();
@@ -190,21 +191,11 @@ const Kiosk = () => {
     }
   }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
 
-  // Stop scanner when switching to plate mode
-  useEffect(() => {
-    if (mode === 'plate') {
-      stopScanner();
-    }
-  }, [mode, stopScanner]);
-
-  useEffect(() => {
-    return () => { stopScanner(); };
-  }, [stopScanner]);
-
   // Realtime subscription
   useEffect(() => {
+    const targetId = parseInt(siteId);
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', parseInt(siteId)).maybeSingle();
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', targetId).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -222,7 +213,7 @@ const Kiosk = () => {
         event: 'UPDATE',
         schema: 'public',
         table: 'wash_bay_status',
-        filter: `id=eq.${siteId}`
+        filter: `id=eq.${targetId}`
       },
       (payload) => {
         const d = payload.new;
@@ -253,7 +244,6 @@ const Kiosk = () => {
           <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName} (Bay {siteId})</p>
         )}
 
-        {/* Status Icon (hidden during idle to show scanners) */}
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
             <motion.div
@@ -278,15 +268,12 @@ const Kiosk = () => {
           {config.title}
         </motion.h2>
 
-        {/* Mode Switcher (visible when idle) */}
         {bayState.status === 'idle' && (
           <div className="flex justify-center gap-2">
             <button
               onClick={() => setMode('code')}
               className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                mode === 'code'
-                  ? 'bg-primary text-primary-foreground shadow-lg'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+                mode === 'code' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
             >
               <QrCode className="w-5 h-5" />
@@ -296,9 +283,7 @@ const Kiosk = () => {
               <button
                 onClick={() => setMode('plate')}
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  mode === 'plate'
-                    ? 'bg-primary text-primary-foreground shadow-lg'
-                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  mode === 'plate' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Car className="w-5 h-5" />
@@ -308,7 +293,6 @@ const Kiosk = () => {
           </div>
         )}
 
-        {/* QR Code Scanner */}
         {bayState.status === 'idle' && mode === 'code' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -337,12 +321,8 @@ const Kiosk = () => {
           </motion.div>
         )}
 
-        {/* Plate Scanner */}
         {bayState.status === 'idle' && mode === 'plate' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
             {validating && (
               <div className="mt-4 flex items-center justify-center gap-2 text-primary">
@@ -353,14 +333,12 @@ const Kiosk = () => {
           </motion.div>
         )}
 
-        {/* Package info */}
         {packageInfo && bayState.status === 'washing' && (
           <div className="inline-block px-6 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-lg font-semibold">
             {packageInfo.vehicle_reg} • {packageInfo.days_remaining} days remaining
           </div>
         )}
 
-        {/* Wash type badge */}
         {washLabel && bayState.status === 'washing' && !packageInfo && (
           <div className="inline-block px-6 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-xl font-semibold">
             {washLabel}
