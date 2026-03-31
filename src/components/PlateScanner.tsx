@@ -19,22 +19,6 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraActive(true);
-    } catch {
-      toast.error('Could not access camera. Please grant permission.');
-    }
-  }, []);
-
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -48,10 +32,42 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     setScanning(false);
   }, []);
 
+  const startCamera = useCallback(async () => {
+    try {
+      // 1. Set camera as active first so the video element is rendered
+      setCameraActive(true);
+
+      // 2. Request the stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+
+      // We'll use a useEffect to attach the stream once the video element is confirmed to exist
+    } catch (err) {
+      console.error('Camera access error:', err);
+      setCameraActive(false);
+      toast.error('Could not access camera. Please grant permission.');
+    }
+  }, []);
+
+  // Effect to attach the stream to the video element once it's rendered
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(err => {
+        console.error("Video play error:", err);
+      });
+    }
+  }, [cameraActive]);
+
   const captureAndRecognize = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || scanning || disabled) return;
 
     const video = videoRef.current;
+    // Check if video is actually playing and has dimensions
+    if (video.readyState !== 4 || video.videoWidth === 0) return;
+
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -69,19 +85,11 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       const formData = new FormData();
       formData.append('upload', blob, 'plate.jpg');
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const { data, error } = await supabase.functions.invoke('recognize-plate', {
+        body: formData,
+      });
 
-      const resp = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/recognize-plate`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey },
-          body: formData,
-        }
-      );
-
-      const data = await resp.json();
+      if (error) throw error;
 
       if (data.plate && data.score > 0.6) {
         setPlate(data.plate);
@@ -96,10 +104,10 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     }
   }, [scanning, disabled, onPlateDetected, stopCamera]);
 
-  // Auto-capture every 2 seconds while camera is active
+  // Auto-capture every 3 seconds while camera is active
   useEffect(() => {
     if (cameraActive && !disabled) {
-      intervalRef.current = setInterval(captureAndRecognize, 2000);
+      intervalRef.current = setInterval(captureAndRecognize, 3000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
@@ -124,7 +132,13 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       {/* Camera viewfinder */}
       {cameraActive ? (
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-4 border-primary/30 bg-black">
-          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            playsInline
+            muted
+            autoPlay
+          />
           {scanning && (
             <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
               <Loader2 className="w-10 h-10 animate-spin text-primary" />

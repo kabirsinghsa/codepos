@@ -63,6 +63,9 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Determine which wash bay to trigger (1, 2, or 3)
+    const targetBayId = site_id ? parseInt(site_id.toString()) : 1;
+
     // Package found — log the wash with site info
     await supabase
       .from('package_wash_logs')
@@ -71,12 +74,12 @@ Deno.serve(async (req) => {
         vehicle_reg: cleanPlate,
         wash_type: pkg.wash_type,
         site_name: site_name || '',
-        site_id: site_id || null,
+        site_id: (site_id && site_id.toString().length > 20) ? site_id : null,
       })
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
-    // Start the wash
+    // Start the wash for the specific site
     await supabase
       .from('wash_bay_status')
       .update({
@@ -86,7 +89,7 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', 1)
+      .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
 
     const daysRemaining = Math.ceil(
       (new Date(pkg.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
