@@ -68,7 +68,6 @@ const Kiosk = () => {
     started_at: null,
   });
   const [mode, setMode] = useState<KioskMode>('code');
-  const showBothScanners = packagesEnabled || unlimitedPackagesEnabled;
   const [packageInfo, setPackageInfo] = useState<{ vehicle_reg?: string; days_remaining?: number } | null>(null);
 
   useEffect(() => {
@@ -76,7 +75,6 @@ const Kiosk = () => {
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
-          // Only overwrite siteName if it wasn't provided in the URL
           if (row.key === 'site_name' && !siteFromUrl) setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
@@ -112,7 +110,7 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code: cleanCode, site_id: siteId, site_name: siteName },
+        body: { code: cleanCode, site_id: parseInt(siteId), site_name: siteName },
       });
 
       if (error || !data?.valid) {
@@ -135,7 +133,7 @@ const Kiosk = () => {
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteName, site_id: siteId },
+        body: { plate, site_name: siteName, site_id: parseInt(siteId) },
       });
 
       if (error || !data?.valid) {
@@ -164,24 +162,22 @@ const Kiosk = () => {
       );
       setScanning(true);
     } catch (err) {
-      toast.error('Could not access camera. Please grant camera permission.');
+      toast.error('Could not access camera.');
       scannerRef.current = null;
     }
   }, [validateCode]);
 
-  // Auto-reset after washing
   useEffect(() => {
     if (bayState.status === 'washing') {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
         }).eq('id', parseInt(siteId));
-      }, 3000); // 3 seconds as requested
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [bayState.status, siteId]);
 
-  // Auto-start scanner when idle
   useEffect(() => {
     if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
       startScanner();
@@ -191,17 +187,10 @@ const Kiosk = () => {
     }
   }, [bayState.status, mode, scanning, validating, startScanner, stopScanner]);
 
-  // Realtime subscription
   useEffect(() => {
     const targetId = parseInt(siteId);
-
     const fetchStatus = async () => {
-      const { data } = await supabase
-        .from('wash_bay_status')
-        .select('*')
-        .eq('id', targetId)
-        .maybeSingle();
-
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', targetId).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -215,12 +204,7 @@ const Kiosk = () => {
 
     const channel = supabase.channel(`wash-bay-status-${siteId}`).on(
       'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'wash_bay_status',
-        filter: `id=eq.${targetId}`
-      },
+      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${targetId}` },
       (payload) => {
         const d = payload.new;
         setBayState({
@@ -229,7 +213,6 @@ const Kiosk = () => {
           current_code: d.current_code,
           started_at: d.started_at,
         });
-        lastScannedRef.current = null;
         setPackageInfo(null);
       }
     ).subscribe();
@@ -246,92 +229,52 @@ const Kiosk = () => {
     <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none cursor-default`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
-        {siteName && (
-          <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName} (Bay {siteId})</p>
-        )}
+
+        <div className="flex justify-center gap-2 -mt-4">
+          <span className="px-3 py-1 bg-secondary text-foreground text-xs font-bold rounded-full border border-border uppercase">
+            {siteName || 'Unknown Site'}
+          </span>
+          <span className="px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-full uppercase">
+            Bay {siteId}
+          </span>
+        </div>
 
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
-            <motion.div
-              key={bayState.status}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              transition={{ duration: 0.4 }}
-              className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}
-            >
+            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${config.pulse ? 'animate-pulse' : ''}`}>
               {config.icon}
             </motion.div>
           </AnimatePresence>
         )}
 
-        <motion.h2
-          key={config.title}
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="text-4xl md:text-5xl font-bold text-foreground tracking-wide"
-        >
+        <motion.h2 key={config.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-bold text-foreground tracking-wide">
           {config.title}
         </motion.h2>
 
         {bayState.status === 'idle' && (
           <div className="flex justify-center gap-2">
-            <button
-              onClick={() => setMode('code')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                mode === 'code'
-                  ? 'bg-primary text-primary-foreground shadow-lg'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <QrCode className="w-5 h-5" />
-              Scan QR Code
+            <button onClick={() => setMode('code')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'code' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
+              <QrCode className="w-5 h-5" /> Scan QR Code
             </button>
-            {showBothScanners && (
-              <button
-                onClick={() => setMode('plate')}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  mode === 'plate'
-                    ? 'bg-primary text-primary-foreground shadow-lg'
-                    : 'bg-secondary text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Car className="w-5 h-5" />
-                Scan Reg Number
-              </button>
-            )}
+            <button onClick={() => setMode('plate')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'plate' ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
+              <Car className="w-5 h-5" /> Scan Reg Number
+            </button>
           </div>
         )}
 
         {bayState.status === 'idle' && mode === 'code' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center gap-4"
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
             <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-2xl overflow-hidden border-4 border-primary/30 bg-black">
               <div id={scannerContainerId} className="w-full h-full" />
-              {validating && (
-                <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                </div>
-              )}
+              {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
             </div>
           </motion.div>
         )}
 
         {bayState.status === 'idle' && mode === 'plate' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
-            {validating && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-primary">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm font-mono">Checking package...</span>
-              </div>
-            )}
+            {validating && <div className="mt-4 flex items-center justify-center gap-2 text-primary"><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm font-mono">Checking package...</span></div>}
           </motion.div>
         )}
 
