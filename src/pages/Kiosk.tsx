@@ -50,9 +50,13 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
-  const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
+
+  // Get site from URL param e.g. /kiosk?site=Main%20Branch
+  const urlParams = new URLSearchParams(window.location.search);
+  const siteFromUrl = urlParams.get('site') || '';
+  const [siteName, setSiteName] = useState(siteFromUrl);
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
@@ -68,7 +72,7 @@ const Kiosk = () => {
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
-          if (row.key === 'site_name') setSiteName(row.value);
+          if (row.key === 'site_name' && !siteFromUrl) setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
         });
@@ -129,7 +133,7 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, []);
+  }, [siteName]);
 
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
@@ -236,6 +240,9 @@ const Kiosk = () => {
     <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none cursor-default`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
+        {siteName && (
+          <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName}</p>
+        )}
 
         {/* Status Icon (hidden during idle to show scanners) */}
         {bayState.status !== 'idle' && (
