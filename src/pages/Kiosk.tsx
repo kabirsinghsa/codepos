@@ -240,6 +240,9 @@ const Kiosk = () => {
     <div className={`min-h-screen bg-gradient-to-b ${config.bg} flex flex-col items-center justify-center p-8 select-none cursor-default`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
+        {siteName && (
+          <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName}</p>
+        )}
 
         {/* Status Icon (hidden during idle to show scanners) */}
         {bayState.status !== 'idle' && (
