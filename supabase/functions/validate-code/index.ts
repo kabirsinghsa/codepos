@@ -37,7 +37,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { code } = await req.json()
+    const { code, site_id } = await req.json()
+    const targetBayId = site_id ? parseInt(site_id.toString()) : 1;
 
     if (!code || typeof code !== 'string' || code.length !== 6) {
       return new Response(
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
               started_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
-            .eq('id', 1)
+            .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
 
           return new Response(
             JSON.stringify(masterResult),
@@ -144,7 +145,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Update wash bay status to 'washing'
+    // Update wash bay status to 'washing' for the specific site
     await supabase
       .from('wash_bay_status')
       .update({
@@ -154,7 +155,7 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', 1)
+      .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
 
     return new Response(
       JSON.stringify({

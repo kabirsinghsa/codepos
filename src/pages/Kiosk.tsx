@@ -53,10 +53,14 @@ const Kiosk = () => {
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
 
-  // Get site from URL param e.g. /kiosk?site=Main%20Branch
+  // Get site from URL param e.g. /kiosk?site=Main%20Branch&site_id=2
   const urlParams = new URLSearchParams(window.location.search);
   const siteFromUrl = urlParams.get('site') || '';
+  const siteIdFromUrl = urlParams.get('site_id') || '1';
+
   const [siteName, setSiteName] = useState(siteFromUrl);
+  const [siteId, setSiteId] = useState(siteIdFromUrl);
+
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
     current_wash_type: null,
@@ -78,7 +82,7 @@ const Kiosk = () => {
         });
       }
     });
-  }, []);
+  }, [siteFromUrl]);
 
   const [scanning, setScanning] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -96,7 +100,7 @@ const Kiosk = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-code', {
-        body: { code: cleanCode },
+        body: { code: cleanCode, site_id: siteId },
       });
 
       if (error || !data?.valid) {
@@ -112,14 +116,14 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, []);
+  }, [siteId]);
 
   const validatePlate = useCallback(async (plate: string) => {
     setValidating(true);
     setPackageInfo(null);
     try {
       const { data, error } = await supabase.functions.invoke('validate-plate', {
-        body: { plate, site_name: siteName },
+        body: { plate, site_name: siteName, site_id: siteId },
       });
 
       if (error || !data?.valid) {
@@ -133,7 +137,7 @@ const Kiosk = () => {
     } finally {
       setValidating(false);
     }
-  }, [siteName]);
+  }, [siteName, siteId]);
 
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
@@ -164,17 +168,17 @@ const Kiosk = () => {
     setScanning(false);
   }, []);
 
-  // Auto-reset after washing
+  // Auto-reset after washing - changed to 3 seconds as requested
   useEffect(() => {
     if (bayState.status === 'washing') {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
-        }).eq('id', 1);
-      }, 10000);
+        }).eq('id', parseInt(siteId));
+      }, 3000); // 3 seconds
       return () => clearTimeout(timer);
     }
-  }, [bayState.status]);
+  }, [bayState.status, siteId]);
 
   // Auto-start scanner when idle in code mode (or both mode)
   useEffect(() => {
@@ -200,7 +204,7 @@ const Kiosk = () => {
   // Realtime subscription
   useEffect(() => {
     const fetchStatus = async () => {
-      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', 1).single();
+      const { data } = await supabase.from('wash_bay_status').select('*').eq('id', parseInt(siteId)).maybeSingle();
       if (data) {
         setBayState({
           status: data.status as BayStatus,
@@ -212,9 +216,14 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel('wash-bay-status').on(
+    const channel = supabase.channel(`wash-bay-status-${siteId}`).on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status' },
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'wash_bay_status',
+        filter: `id=eq.${siteId}`
+      },
       (payload) => {
         const d = payload.new;
         setBayState({
@@ -229,7 +238,7 @@ const Kiosk = () => {
     ).subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [siteId]);
 
   const config = statusConfig[bayState.status];
   const washLabel = bayState.current_wash_type
@@ -241,7 +250,7 @@ const Kiosk = () => {
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider">{businessName}</h1>
         {siteName && (
-          <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName}</p>
+          <p className="text-sm text-muted-foreground font-medium tracking-wide -mt-4">{siteName} (Bay {siteId})</p>
         )}
 
         {/* Status Icon (hidden during idle to show scanners) */}
