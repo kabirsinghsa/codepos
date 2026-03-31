@@ -5,7 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-// Map package wash types to relay-compatible types
 const washTypeToRelay: Record<string, string> = {
   basic: 'basic',
   standard: 'standard',
@@ -21,7 +20,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { plate, site_name, site_id } = await req.json()
+    const body = await req.json()
+    const { plate, site_name, site_id } = body
+
+    console.log(`[Validation Request] Site: ${site_name}, ID: ${site_id}, Plate: ${plate}`)
 
     if (!plate || typeof plate !== 'string' || plate.trim().length < 3) {
       return new Response(
@@ -31,13 +33,12 @@ Deno.serve(async (req) => {
     }
 
     const cleanPlate = plate.toUpperCase().replace(/\s+/g, ' ').trim()
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Find active package for this registration
+    // Find active package
     const { data: pkg, error } = await supabase
       .from('wash_packages')
       .select('*')
@@ -50,6 +51,7 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (error) {
+      console.error('DB Error:', error)
       return new Response(
         JSON.stringify({ valid: false, error: 'Database error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -57,30 +59,30 @@ Deno.serve(async (req) => {
     }
 
     if (!pkg) {
+      console.log(`No package found for: ${cleanPlate}`)
       return new Response(
         JSON.stringify({ valid: false, error: 'No active package found for this vehicle' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Determine which wash bay to trigger (1, 2, or 3)
-    const targetBayId = site_id ? parseInt(site_id.toString()) : 1;
+    // Determine target hardware bay (1, 2, or 3)
+    const targetBayId = site_id ? parseInt(site_id.toString()) : 1
+    console.log(`Triggering Hardware Bay: ${targetBayId} for ${site_name}`)
 
-    // Package found — log the wash with site info
-    await supabase
-      .from('package_wash_logs')
-      .insert({
-        package_id: pkg.id,
-        vehicle_reg: cleanPlate,
-        wash_type: pkg.wash_type,
-        site_name: site_name || '',
-        site_id: (site_id && site_id.toString().length > 20) ? site_id : null,
-      })
+    // Log the wash
+    await supabase.from('package_wash_logs').insert({
+      package_id: pkg.id,
+      vehicle_reg: cleanPlate,
+      wash_type: pkg.wash_type,
+      site_name: site_name || 'Unknown Site',
+      site_id: (site_id && site_id.toString().length > 20) ? site_id : null,
+    })
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
-    // Start the wash for the specific site
-    await supabase
+    // Open the correct gate
+    const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
         status: 'washing',
@@ -91,26 +93,24 @@ Deno.serve(async (req) => {
       })
       .eq('id', isNaN(targetBayId) ? 1 : targetBayId)
 
-    const daysRemaining = Math.ceil(
-      (new Date(pkg.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    )
+    if (updateError) {
+      console.error('Relay Update Error:', updateError)
+    }
 
     return new Response(
       JSON.stringify({
         valid: true,
         wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
-        vehicle_make: pkg.vehicle_make,
-        vehicle_colour: pkg.vehicle_colour,
-        days_remaining: daysRemaining,
-        end_date: pkg.end_date,
+        days_remaining: Math.ceil((new Date(pkg.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
+    console.error('Runtime Error:', err)
     return new Response(
-      JSON.stringify({ valid: false, error: 'Invalid request' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ valid: false, error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
