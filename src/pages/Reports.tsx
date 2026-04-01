@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getDaysInMonth } from 'date-fns';
-import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck, Tag } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
@@ -28,11 +28,10 @@ interface PackageLogRecord {
   site_name: string;
 }
 
-interface ActivePackage {
+interface PosTransaction {
   id: string;
-  vehicle_reg: string;
-  site_id: string | null;
-  active: boolean;
+  total: number;
+  created_at: string;
 }
 
 const Reports = () => {
@@ -43,6 +42,7 @@ const Reports = () => {
 
   const [codes, setCodes] = useState<WashCodeRecord[]>([]);
   const [packageLogs, setPackageLogs] = useState<PackageLogRecord[]>([]);
+  const [posTransactions, setPosTransactions] = useState<PosTransaction[]>([]);
   const [activePackagesCount, setActivePackagesCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
@@ -52,7 +52,6 @@ const Reports = () => {
       setSites((data as any[]) || []);
     });
 
-    // Fetch total active packages globally and by site
     const fetchActivePackages = async () => {
       const { data } = await supabase
         .from('wash_packages')
@@ -86,13 +85,15 @@ const Reports = () => {
       end = `${month}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
     }
 
-    const [codesRes, logsRes] = await Promise.all([
+    const [codesRes, logsRes, posRes] = await Promise.all([
       supabase.from('wash_codes').select('*').gte('created_at', start).lte('created_at', end).order('created_at', { ascending: false }),
-      supabase.from('package_wash_logs').select('*').gte('washed_at', start).lte('washed_at', end).order('washed_at', { ascending: false })
+      supabase.from('package_wash_logs').select('*').gte('washed_at', start).lte('washed_at', end).order('washed_at', { ascending: false }),
+      supabase.from('pos_transactions').select('id, total, created_at').gte('created_at', start).lte('created_at', end).order('created_at', { ascending: false })
     ]);
 
     setCodes((codesRes.data as WashCodeRecord[]) || []);
     setPackageLogs((logsRes.data as PackageLogRecord[]) || []);
+    setPosTransactions((posRes.data as PosTransaction[]) || []);
     setLoading(false);
   };
 
@@ -124,13 +125,15 @@ const Reports = () => {
     return Object.entries(siteData);
   }, [codes, packageLogs, sites]);
 
+  const posRevenue = useMemo(() => posTransactions.reduce((s, t) => s + Number(t.total), 0), [posTransactions]);
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileText className="w-6 h-6 text-primary" />
-            <h1 className="text-lg font-bold tracking-tight">Business Intelligence</h1>
+            <h1 className="text-lg font-bold tracking-tight uppercase">Site Reports</h1>
           </div>
           <Link to="/" className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase">
             <ArrowLeft className="w-3 h-3" /> Dashboard
@@ -152,7 +155,7 @@ const Reports = () => {
 
           <div className="space-y-1 ml-auto">
             <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest pl-1">
-              {tab === 'monthly' ? 'Select Month' : 'Select Date'}
+              Selection
             </label>
             {tab === 'monthly' ? (
               <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-48 h-10 font-black border-primary/20" />
@@ -168,9 +171,15 @@ const Reports = () => {
               <TrendingUp className="w-5 h-5 text-primary" />
               <h2 className="text-xs font-black uppercase tracking-widest">Site Performance Breakdown</h2>
             </div>
-            <div className="flex items-center gap-2 px-4 py-1 bg-green-500/10 rounded-full border border-green-500/20">
-              <ShieldCheck className="w-3 h-3 text-green-500" />
-              <span className="text-[10px] font-black text-green-600 uppercase tracking-tighter">Total Active Packages: {activePackagesCount['GLOBAL'] || 0}</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-1 bg-green-500/10 rounded-full border border-green-500/20">
+                <ShieldCheck className="w-3 h-3 text-green-500" />
+                <span className="text-[10px] font-black text-green-600 uppercase tracking-tighter">Total Active Packages: {activePackagesCount['GLOBAL'] || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
+                <Tag className="w-3 h-3 text-blue-500" />
+                <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">Total POS Revenue: R{posRevenue.toFixed(2)}</span>
+              </div>
             </div>
           </div>
 
@@ -222,76 +231,73 @@ const Reports = () => {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <section className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-blue-500" />
-                <h2 className="text-[10px] font-black uppercase tracking-widest">Recent Wash Codes</h2>
-              </div>
-              <span className="text-[9px] bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded font-black">{codes.length} ITEMS</span>
-            </div>
-            <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr className="text-muted-foreground text-left">
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Code</th>
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Location</th>
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest text-right">Price</th>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 px-1">Wash Codes</h2>
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr className="text-muted-foreground text-left">
+                    <th className="px-4 py-3 font-black text-[9px] uppercase">Code</th>
+                    <th className="px-4 py-3 font-black text-[9px] uppercase text-right">Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map(c => (
+                    <tr key={c.id} className="border-b border-border/50">
+                      <td className="px-4 py-3 font-mono font-bold text-primary">{c.code}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-right text-xs">R{Number(c.price).toFixed(2)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {codes.map(c => (
-                      <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                        <td className="px-4 py-3 font-mono font-bold text-primary">{c.code}</td>
-                        <td className="px-4 py-3 text-[9px] font-black uppercase">
-                          {sites.find(s => s.id === c.site_id)?.name || 'HEAD OFFICE'}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-right text-xs">R{Number(c.price).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                    {codes.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic text-xs tracking-widest">No activity in this period</td></tr>}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 
           <section className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-purple-500" />
-                <h2 className="text-[10px] font-black uppercase tracking-widest">Recent Package Washes</h2>
-              </div>
-              <span className="text-[9px] bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded font-black">{packageLogs.length} ITEMS</span>
-            </div>
-            <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr className="text-muted-foreground text-left">
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Reg Number</th>
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Location</th>
-                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest text-right">Time</th>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500 px-1">Package Washes</h2>
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr className="text-muted-foreground text-left">
+                    <th className="px-4 py-3 font-black text-[9px] uppercase">Vehicle</th>
+                    <th className="px-4 py-3 font-black text-[9px] uppercase text-right">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {packageLogs.map(p => (
+                    <tr key={p.id} className="border-b border-border/50">
+                      <td className="px-4 py-3 font-mono font-bold text-foreground uppercase">{p.vehicle_reg}</td>
+                      <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono text-right bold">
+                        {format(new Date(p.washed_at), 'HH:mm')}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {packageLogs.map(p => (
-                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                        <td className="px-4 py-3 font-mono font-bold text-foreground uppercase">{p.vehicle_reg}</td>
-                        <td className="px-4 py-3 text-[9px] font-black uppercase">
-                          {p.site_name || 'HEAD OFFICE'}
-                        </td>
-                        <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono text-right font-bold">
-                          {format(new Date(p.washed_at), 'HH:mm')}
-                        </td>
-                      </tr>
-                    ))}
-                    {packageLogs.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic text-xs tracking-widest">No activity in this period</td></tr>}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-500 px-1">POS Sales</h2>
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr className="text-muted-foreground text-left">
+                    <th className="px-4 py-3 font-black text-[9px] uppercase">Trans ID</th>
+                    <th className="px-4 py-3 font-black text-[9px] uppercase text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {posTransactions.map(t => (
+                    <tr key={t.id} className="border-b border-border/50">
+                      <td className="px-4 py-3 font-mono text-[9px] text-muted-foreground truncate max-w-[80px]">{t.id}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-right text-xs text-orange-500">R{Number(t.total).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  {posTransactions.length === 0 && <tr><td colSpan={2} className="py-12 text-center text-muted-foreground italic text-[9px]">No POS sales</td></tr>}
+                </tbody>
+              </table>
             </div>
           </section>
         </div>
