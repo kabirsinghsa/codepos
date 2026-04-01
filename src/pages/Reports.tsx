@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getDaysInMonth } from 'date-fns';
-import { FileText, ArrowLeft, CalendarDays, Calendar, Car, ShoppingCart, MapPin, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -47,8 +47,6 @@ const Reports = () => {
 
   const fetchData = async () => {
     setLoading(true);
-
-    // Determine time range based on current tab
     let start, end;
     if (tab === 'daily' || tab === 'overview') {
       start = `${date}T00:00:00.000Z`;
@@ -72,7 +70,6 @@ const Reports = () => {
 
   useEffect(() => { fetchData(); }, [date, month, tab]);
 
-  // Unified Analytics for each of your 3 sites
   const statsBySite = useMemo(() => {
     const siteData: Record<string, { codes: number; packages: number; revenue: number }> = {
       'HEAD OFFICE': { codes: 0, packages: 0, revenue: 0 },
@@ -80,7 +77,6 @@ const Reports = () => {
       'BOKSBURG': { codes: 0, packages: 0, revenue: 0 }
     };
 
-    // Process Codes
     codes.forEach(c => {
       const matchedSite = sites.find(s => s.id === c.site_id);
       const siteName = matchedSite ? matchedSite.name.toUpperCase() : 'HEAD OFFICE';
@@ -90,7 +86,6 @@ const Reports = () => {
       }
     });
 
-    // Process Packages
     packageLogs.forEach(p => {
       const siteName = (p.site_name || 'HEAD OFFICE').toUpperCase();
       if (siteData[siteName]) {
@@ -102,15 +97,15 @@ const Reports = () => {
   }, [codes, packageLogs, sites]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground font-sans">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileText className="w-6 h-6 text-primary" />
-            <h1 className="text-lg font-bold">Business Intelligence</h1>
+            <h1 className="text-lg font-bold tracking-tight">Business Intelligence</h1>
           </div>
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
+          <Link to="/" className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase">
+            <ArrowLeft className="w-3 h-3" /> Dashboard
           </Link>
         </div>
       </header>
@@ -118,60 +113,67 @@ const Reports = () => {
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-8">
         <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center bg-card p-4 rounded-xl border border-border shadow-sm">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Reporting Period</label>
+            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest pl-1">Reporting Mode</label>
             <Tabs value={tab} onValueChange={setTab} className="w-full">
               <TabsList className="bg-muted/50 p-1">
-                <TabsTrigger value="overview" className="text-xs uppercase font-bold px-6">Overview</TabsTrigger>
-                <TabsTrigger value="daily" className="text-xs uppercase font-bold px-6">Daily</TabsTrigger>
-                <TabsTrigger value="monthly" className="text-xs uppercase font-bold px-6">Monthly</TabsTrigger>
+                <TabsTrigger value="overview" className="text-[10px] uppercase font-black px-6">Today</TabsTrigger>
+                <TabsTrigger value="monthly" className="text-[10px] uppercase font-black px-6">Monthly</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           <div className="space-y-1 ml-auto">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest pl-1">
               {tab === 'monthly' ? 'Select Month' : 'Select Date'}
             </label>
             {tab === 'monthly' ? (
-              <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-48 h-10 font-bold border-primary/20" />
+              <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-48 h-10 font-black border-primary/20" />
             ) : (
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-48 h-10 font-bold border-primary/20" />
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-48 h-10 font-black border-primary/20" />
             )}
           </div>
         </div>
 
-        {/* SITE COMPARISON GRID */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="text-sm font-black uppercase tracking-tight">Performance by Location</h2>
+            <h2 className="text-xs font-black uppercase tracking-widest">Site Performance Breakdown</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {statsBySite.map(([name, data]) => (
-              <Card key={name} className="overflow-hidden border-2 border-border/50 hover:border-primary/50 transition-all shadow-sm">
+              <Card key={name} className="overflow-hidden border-2 border-border shadow-md">
                 <CardHeader className="bg-muted/30 pb-4 border-b">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-xs font-black text-primary tracking-widest">{name}</CardTitle>
+                    <CardTitle className="text-xs font-black text-primary tracking-[0.2em]">{name}</CardTitle>
                     <MapPin className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex justify-between items-baseline">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase">Total Washes</p>
-                    <p className="text-4xl font-black font-mono text-foreground">{data.codes + data.packages}</p>
+                <CardContent className="pt-6 space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Washes</p>
+                    <p className="text-5xl font-black font-mono text-foreground tracking-tighter italic">{data.codes + data.packages}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 py-3 border-y border-dashed border-border">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Codes Used</p>
-                      <p className="text-xl font-bold font-mono">{data.codes}</p>
+
+                  <div className="space-y-4 pt-4 border-t border-dashed border-border">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <ShoppingCart className="w-3 h-3 text-blue-500" />
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Wash Codes Sold</span>
+                      </div>
+                      <span className="text-xl font-black font-mono text-blue-500">{data.codes}</span>
                     </div>
-                    <div className="space-y-1 border-l border-border pl-4">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Package Washes</p>
-                      <p className="text-xl font-bold font-mono">{data.packages}</p>
+
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3 h-3 text-purple-500" />
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Package Washes</span>
+                      </div>
+                      <span className="text-xl font-black font-mono text-purple-500">{data.packages}</span>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Code Revenue</p>
+
+                  <div className="pt-4 border-t-2 border-primary/10">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1 tracking-widest">Cash Revenue (Codes)</p>
                     <p className="text-2xl font-black font-mono text-green-500">R{data.revenue.toFixed(2)}</p>
                   </div>
                 </CardContent>
@@ -180,76 +182,73 @@ const Reports = () => {
           </div>
         </section>
 
-        {/* LOGS BREAKDOWN */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Wash Codes Breakdown */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-blue-500" />
-                <h2 className="text-xs font-black uppercase tracking-widest">Wash Code Log</h2>
+                <ShoppingCart className="w-4 h-4 text-blue-500" />
+                <h2 className="text-[10px] font-black uppercase tracking-widest">Recent Wash Codes</h2>
               </div>
-              <span className="text-[10px] bg-blue-500/10 text-blue-500 px-2 py-1 rounded font-black">{codes.length} TRANSACTIONS</span>
+              <span className="text-[9px] bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded font-black">{codes.length} ITEMS</span>
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b">
+                  <thead className="bg-muted/50 border-b border-border">
                     <tr className="text-muted-foreground text-left">
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase">Code</th>
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase">Site</th>
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase text-right">Amount</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Code</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Location</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest text-right">Price</th>
                     </tr>
                   </thead>
                   <tbody>
                     {codes.map(c => (
-                      <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
+                      <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-primary">{c.code}</td>
-                        <td className="px-4 py-3 text-[10px] font-black uppercase">
+                        <td className="px-4 py-3 text-[9px] font-black uppercase">
                           {sites.find(s => s.id === c.site_id)?.name || 'HEAD OFFICE'}
                         </td>
-                        <td className="px-4 py-3 font-mono font-bold text-right">R{Number(c.price).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-right text-xs">R{Number(c.price).toFixed(2)}</td>
                       </tr>
                     ))}
-                    {codes.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic">No code activity found.</td></tr>}
+                    {codes.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic text-xs tracking-widest">No activity in this period</td></tr>}
                   </tbody>
                 </table>
               </div>
             </div>
           </section>
 
-          {/* Package Logs Breakdown */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                <h2 className="text-xs font-black uppercase tracking-widest">Package Usage Log</h2>
+                <CheckCircle2 className="w-4 h-4 text-purple-500" />
+                <h2 className="text-[10px] font-black uppercase tracking-widest">Recent Package Washes</h2>
               </div>
-              <span className="text-[10px] bg-purple-500/10 text-purple-500 px-2 py-1 rounded font-black">{packageLogs.length} WASHES</span>
+              <span className="text-[9px] bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded font-black">{packageLogs.length} ITEMS</span>
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b">
+                  <thead className="bg-muted/50 border-b border-border">
                     <tr className="text-muted-foreground text-left">
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase">Registration</th>
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase">Site</th>
-                      <th className="px-4 py-3 font-bold text-[10px] uppercase text-right">Time</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Reg Number</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest">Location</th>
+                      <th className="px-4 py-3 font-bold text-[9px] uppercase tracking-widest text-right">Time</th>
                     </tr>
                   </thead>
                   <tbody>
                     {packageLogs.map(p => (
-                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
+                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-foreground uppercase">{p.vehicle_reg}</td>
-                        <td className="px-4 py-3 text-[10px] font-black uppercase">
+                        <td className="px-4 py-3 text-[9px] font-black uppercase">
                           {p.site_name || 'HEAD OFFICE'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground font-mono text-right">
+                        <td className="px-4 py-3 text-[10px] text-muted-foreground font-mono text-right font-bold">
                           {format(new Date(p.washed_at), 'HH:mm')}
                         </td>
                       </tr>
                     ))}
-                    {packageLogs.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic">No package activity found.</td></tr>}
+                    {packageLogs.length === 0 && <tr><td colSpan={3} className="py-12 text-center text-muted-foreground italic text-xs tracking-widest">No activity in this period</td></tr>}
                   </tbody>
                 </table>
               </div>
