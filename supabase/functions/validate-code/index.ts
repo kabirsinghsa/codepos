@@ -38,11 +38,20 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { code, site_id } = body
+    const { code, site_id, site_name } = body
 
-    // Determine which bay to trigger based on the Kiosk's site_id
-    const targetBayId = site_id ? parseInt(site_id.toString()) : 1
-    console.log(`[Code Validation] Bay: ${targetBayId}, Code: ${code}`)
+    const rawSiteId = site_id ?? body.id
+    const targetBayId = Number.parseInt(String(rawSiteId), 10)
+
+    if (!rawSiteId || Number.isNaN(targetBayId)) {
+      console.error('[Code Validation] Missing or invalid site_id', body)
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Configuration Error: Site ID is missing. Check your kiosk URL.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`[Code Validation] Bay: ${targetBayId}, Site: ${site_name || 'Unknown'}, Code: ${code}`)
 
     if (!code || typeof code !== 'string' || code.length !== 6) {
       return new Response(
