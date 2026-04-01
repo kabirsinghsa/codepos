@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getDaysInMonth } from 'date-fns';
-import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
@@ -28,6 +28,13 @@ interface PackageLogRecord {
   site_name: string;
 }
 
+interface ActivePackage {
+  id: string;
+  vehicle_reg: string;
+  site_id: string | null;
+  active: boolean;
+}
+
 const Reports = () => {
   const { isAdmin } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -36,6 +43,7 @@ const Reports = () => {
 
   const [codes, setCodes] = useState<WashCodeRecord[]>([]);
   const [packageLogs, setPackageLogs] = useState<PackageLogRecord[]>([]);
+  const [activePackagesCount, setActivePackagesCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
 
@@ -43,7 +51,27 @@ const Reports = () => {
     supabase.from('sites').select('id, name').order('name').then(({ data }) => {
       setSites((data as any[]) || []);
     });
-  }, []);
+
+    // Fetch total active packages globally and by site
+    const fetchActivePackages = async () => {
+      const { data } = await supabase
+        .from('wash_packages')
+        .select('site_id')
+        .eq('active', true)
+        .gt('end_date', new Date().toISOString());
+
+      if (data) {
+        const counts: Record<string, number> = { 'GLOBAL': data.length };
+        data.forEach(pkg => {
+          const matchedSite = sites.find(s => s.id === pkg.site_id);
+          const siteName = matchedSite ? matchedSite.name.toUpperCase() : 'HEAD OFFICE';
+          counts[siteName] = (counts[siteName] || 0) + 1;
+        });
+        setActivePackagesCount(counts);
+      }
+    };
+    if (sites.length > 0) fetchActivePackages();
+  }, [sites]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -135,10 +163,17 @@ const Reports = () => {
         </div>
 
         <section className="space-y-4">
-          <div className="flex items-center gap-2 px-1">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="text-xs font-black uppercase tracking-widest">Site Performance Breakdown</h2>
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              <h2 className="text-xs font-black uppercase tracking-widest">Site Performance Breakdown</h2>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-1 bg-green-500/10 rounded-full border border-green-500/20">
+              <ShieldCheck className="w-3 h-3 text-green-500" />
+              <span className="text-[10px] font-black text-green-600 uppercase tracking-tighter">Total Active Packages: {activePackagesCount['GLOBAL'] || 0}</span>
+            </div>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {statsBySite.map(([name, data]) => (
               <Card key={name} className="overflow-hidden border-2 border-border shadow-md">
@@ -150,7 +185,7 @@ const Reports = () => {
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Washes</p>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Site Washes</p>
                     <p className="text-5xl font-black font-mono text-foreground tracking-tighter italic">{data.codes + data.packages}</p>
                   </div>
 
@@ -160,7 +195,7 @@ const Reports = () => {
                         <ShoppingCart className="w-3 h-3 text-blue-500" />
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Wash Codes Sold</span>
                       </div>
-                      <span className="text-xl font-black font-mono text-blue-500">{data.codes}</span>
+                      <span className="text-xl font-black font-mono">{data.codes}</span>
                     </div>
 
                     <div className="flex justify-between items-center">
@@ -168,7 +203,12 @@ const Reports = () => {
                         <CheckCircle2 className="w-3 h-3 text-purple-500" />
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Package Washes</span>
                       </div>
-                      <span className="text-xl font-black font-mono text-purple-500">{data.packages}</span>
+                      <span className="text-xl font-black font-mono">{data.packages}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-muted/50">
+                      <span className="text-[9px] font-black text-green-600 uppercase tracking-tighter italic">Currently Active Packages (Site)</span>
+                      <span className="text-sm font-black font-mono text-green-600">{activePackagesCount[name] || 0}</span>
                     </div>
                   </div>
 
