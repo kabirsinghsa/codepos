@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Activity, Droplets, Clock, DollarSign, MapPin } from 'lucide-react';
+import { Activity, Droplets, Clock, DollarSign, MapPin, ShieldCheck, Zap, AlertCircle } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type BayStatus = 'idle' | 'washing' | 'complete' | 'error';
 
@@ -23,14 +24,13 @@ interface RecentWash {
   used: boolean;
   used_at: string | null;
   created_at: string;
-  customer_phone: string;
 }
 
-const statusColors: Record<BayStatus, string> = {
-  idle: 'bg-muted text-muted-foreground',
-  washing: 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]',
-  complete: 'bg-green-500/20 text-green-400',
-  error: 'bg-destructive/20 text-destructive',
+const statusThemes: Record<BayStatus, { bg: string; text: string; glow: string; label: string }> = {
+  idle: { bg: 'bg-zinc-900/50', text: 'text-zinc-500', glow: 'border-zinc-800', label: 'Ready' },
+  washing: { bg: 'bg-blue-500/10', text: 'text-blue-400', glow: 'border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.2)]', label: 'In Progress' },
+  complete: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', glow: 'border-emerald-500/50', label: 'Success' },
+  error: { bg: 'bg-red-500/10', text: 'text-red-400', glow: 'border-red-500/50', label: 'System Alert' },
 };
 
 const siteNames: Record<number, string> = {
@@ -42,186 +42,177 @@ const siteNames: Record<number, string> = {
 const Monitor = () => {
   const [bays, setBays] = useState<BayState[]>([]);
   const [recentWashes, setRecentWashes] = useState<RecentWash[]>([]);
-  const [todayStats, setTodayStats] = useState({ total: 0, revenue: 0, used: 0 });
+  const [todayStats, setTodayStats] = useState({ total: 0, revenue: 0, throughput: 0 });
 
   const fetchData = async () => {
-    // 1. Fetch current status of all bays
-    const { data: baysData } = await supabase
-      .from('wash_bay_status')
-      .select('*')
-      .in('id', [1, 2, 3])
-      .order('id', { ascending: true });
-
+    const { data: baysData } = await supabase.from('wash_bay_status').select('*').in('id', [1, 2, 3]).order('id', { ascending: true });
     if (baysData) setBays(baysData as BayState[]);
 
-    // 2. Recent washes
-    const { data: washes } = await supabase
-      .from('wash_codes')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(15);
+    const { data: washes } = await supabase.from('wash_codes').select('*').order('created_at', { ascending: false }).limit(10);
     if (washes) setRecentWashes(washes as RecentWash[]);
 
-    // 3. Today's stats
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const { data: todayCodes } = await supabase
-      .from('wash_codes')
-      .select('price, used')
-      .gte('created_at', todayStart.toISOString());
+    const { data: todayCodes } = await supabase.from('wash_codes').select('price, used').gte('created_at', todayStart.toISOString());
     if (todayCodes) {
       setTodayStats({
         total: todayCodes.length,
         revenue: todayCodes.reduce((sum, c) => sum + Number(c.price), 0),
-        used: todayCodes.filter(c => c.used).length,
+        throughput: todayCodes.filter(c => c.used).length,
       });
     }
   };
 
   useEffect(() => {
     fetchData();
-
-    // Listen for status changes on ALL BAYS
-    const channel = supabase.channel('monitor-bays').on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'wash_bay_status' },
-      () => {
-        console.log("Status update detected! Refreshing...");
-        fetchData();
-      }
-    ).subscribe();
-
-    const ch2 = supabase.channel('monitor-codes').on('postgres_changes', { event: '*', schema: 'public', table: 'wash_codes' }, () => {
-      fetchData();
-    }).subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(ch2);
-    };
+    const channel = supabase.channel('ops-monitor').on('postgres_changes', { event: '*', schema: 'public', table: 'wash_bay_status' }, () => fetchData()).subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Activity className="w-5 h-5 text-primary" />
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-primary/30">
+      {/* Top Professional Navbar */}
+      <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+              <Zap className="text-white w-6 h-6 fill-current" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Operations Command</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Network Live • Real-time Sync</span>
+              </div>
+            </div>
           </div>
-          <h1 className="text-lg font-black uppercase tracking-tight">Live Operations Monitor</h1>
-          <Link to="/" className="ml-auto text-xs font-bold text-muted-foreground hover:text-foreground transition-colors">← EXIT MONITOR</Link>
+          <Link to="/" className="text-[10px] font-black px-6 py-2.5 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-all tracking-widest">
+            CONTROL PANEL
+          </Link>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-10">
-        {/* Sites Status Grid */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 px-1 text-muted-foreground">
-            <MapPin className="w-4 h-4" />
-            <h2 className="text-xs font-bold uppercase tracking-widest">Site Connectivity Status</h2>
+      <main className="max-w-[1600px] mx-auto px-6 py-10 space-y-12">
+        {/* Global Key Metrics */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[
+            { label: 'Intake Today', value: todayStats.total, icon: Activity, color: 'text-blue-400' },
+            { label: 'Throughput', value: todayStats.throughput, icon: ShieldCheck, color: 'text-emerald-400' },
+            { label: 'Active Sites', value: '3 / 3', icon: MapPin, color: 'text-purple-400' },
+            { label: 'Revenue Net', value: `R${todayStats.revenue.toFixed(0)}`, icon: DollarSign, color: 'text-amber-400' }
+          ].map((stat, i) => (
+            <div key={i} className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5">
+              <div className={`p-4 rounded-xl bg-zinc-950 border border-zinc-800 ${stat.color}`}>
+                <stat.icon className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{stat.label}</p>
+                <p className="text-3xl font-black font-mono mt-1 tracking-tighter">{stat.value}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Site Nodes Grid */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500">Live Station Deployment</h2>
+            <span className="text-[10px] font-bold text-zinc-600 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800">NODES: 001, 002, 003</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {[1, 2, 3].map((id) => {
               const bay = bays.find(b => b.id === id);
-              const isWashing = bay?.status === 'washing';
+              const theme = statusThemes[bay?.status || 'idle'];
 
               return (
-                <div key={id} className={`rounded-2xl border-2 transition-all duration-500 p-6 space-y-6 ${isWashing ? 'border-blue-500 bg-blue-500/5' : 'border-border bg-card shadow-sm'}`}>
+                <motion.div
+                  key={id}
+                  layout
+                  className={`relative rounded-[2rem] border-2 transition-all duration-700 p-8 space-y-8 ${theme.glow} ${theme.bg}`}
+                >
                   <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-black text-xl tracking-tight">{siteNames[id]}</h3>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70 tracking-widest">Hardware Node {id}</p>
+                    <div className="space-y-1">
+                      <h3 className="font-black text-2xl tracking-tighter">{siteNames[id]}</h3>
+                      <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Site ID: 00{id}</p>
                     </div>
-                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${statusColors[bay?.status || 'idle']}`}>
-                      {bay?.status || 'OFFLINE'}
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${theme.text} border-current/20 bg-black/20`}>
+                      {theme.label}
                     </div>
                   </div>
 
-                  <div className="min-h-[100px] flex flex-col justify-center">
-                    {isWashing ? (
-                      <div className="space-y-3 animate-in fade-in zoom-in duration-300">
-                        <div className="flex items-center gap-3 text-blue-500">
-                          <div className="p-2 bg-blue-500/20 rounded-full animate-pulse">
-                            <Droplets className="w-6 h-6" />
+                  <div className="min-h-[140px] flex flex-col justify-center">
+                    <AnimatePresence mode="wait">
+                      {bay?.status === 'washing' ? (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="space-y-4"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="h-14 w-14 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 animate-pulse">
+                              <Droplets className="w-8 h-8" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-blue-400/60 uppercase tracking-widest italic">Current Program</p>
+                              <p className="font-black text-2xl uppercase tracking-tighter text-blue-400">{bay.current_wash_type} Wash</p>
+                            </div>
                           </div>
-                          <span className="font-black text-lg uppercase italic">{bay.current_wash_type} Wash</span>
+                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-500/10">
+                            <div>
+                              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Auth Code</p>
+                              <p className="font-mono text-sm font-bold text-zinc-300">{bay.current_code}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Elapsed</p>
+                              <p className="font-mono text-sm font-bold text-blue-400">ACTIVE</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <div className="text-center space-y-3 opacity-20">
+                          <ShieldCheck className="w-10 h-10 mx-auto text-zinc-500" />
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em]">System Standby</p>
                         </div>
-                        <div className="pl-11 space-y-1">
-                          <p className="text-xs font-mono text-muted-foreground">ID: {bay.current_code}</p>
-                          <p className="text-[10px] font-bold text-blue-400 uppercase">Started: {bay.started_at ? format(new Date(bay.started_at), 'HH:mm:ss') : '--:--'}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 border border-dashed rounded-xl border-border/50 opacity-40">
-                        <p className="text-xs font-bold uppercase tracking-widest">Ready for Intake</p>
-                      </div>
-                    )}
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
         </section>
 
-        {/* Global Summary Stats */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-5 shadow-sm">
-            <div className="p-4 rounded-xl bg-primary/10 text-primary"><Activity className="w-6 h-6" /></div>
-            <div>
-              <p className="text-3xl font-black font-mono leading-none">{todayStats.total}</p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 tracking-widest">Global Intake</p>
+        {/* Console Log Feed */}
+        <section className="bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="bg-zinc-900/50 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+              <h2 className="text-[10px] font-black uppercase tracking-widest">System Activity Log</h2>
             </div>
+            <span className="text-[9px] font-mono text-zinc-600">POLLING CLOUD...</span>
           </div>
-          <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-5 shadow-sm">
-            <div className="p-4 rounded-xl bg-green-500/10 text-green-500"><Clock className="w-6 h-6" /></div>
-            <div>
-              <p className="text-3xl font-black font-mono leading-none">{todayStats.used}</p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 tracking-widest">Throughput</p>
-            </div>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-5 shadow-sm">
-            <div className="p-4 rounded-xl bg-accent/10 text-accent"><DollarSign className="w-6 h-6" /></div>
-            <div>
-              <p className="text-3xl font-black font-mono leading-none">R{todayStats.revenue.toFixed(0)}</p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 tracking-widest">Day Revenue</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Recent Feed */}
-        <section className="space-y-4">
-          <h2 className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">Recent Activity Feed</h2>
-          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20 text-muted-foreground text-left">
-                    <th className="px-6 py-4 font-bold text-[10px] uppercase">Ref Code</th>
-                    <th className="px-6 py-4 font-bold text-[10px] uppercase">Service</th>
-                    <th className="px-6 py-4 font-bold text-[10px] uppercase">Value</th>
-                    <th className="px-6 py-4 font-bold text-[10px] uppercase">Status</th>
-                    <th className="px-6 py-4 font-bold text-[10px] uppercase text-right">Timestamp</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-zinc-900">
+                {recentWashes.map(w => (
+                  <tr key={w.id} className="hover:bg-zinc-900/50 transition-colors group">
+                    <td className="px-6 py-4 font-mono text-[11px] text-zinc-500">
+                      [{format(new Date(w.created_at), 'HH:mm:ss')}]
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[10px] font-black text-blue-500 uppercase tracking-tighter">Event::Wash_Triggered</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-zinc-300 uppercase tracking-tight">{w.wash_type} Service</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-xs font-black text-zinc-600">ID_{w.code}</span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {recentWashes.map(w => (
-                    <tr key={w.id} className="hover:bg-secondary/30 transition-colors group">
-                      <td className="px-6 py-4 font-mono font-bold text-primary">{w.code}</td>
-                      <td className="px-6 py-4 capitalize font-medium">{w.wash_type}</td>
-                      <td className="px-6 py-4 font-mono font-bold text-muted-foreground">R{Number(w.price).toFixed(2)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-tighter uppercase ${w.used ? 'bg-muted text-muted-foreground' : 'bg-green-500/10 text-green-500'}`}>
-                          {w.used ? 'Processed' : 'Active'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-[10px] text-right">
-                        {format(new Date(w.created_at), 'HH:mm')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </main>
