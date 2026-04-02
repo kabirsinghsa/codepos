@@ -23,16 +23,17 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { plate, site_name, site_id } = body
 
-    // 1. STRICT ID DETECTION
+    // 1. STRICT SITE ID DETECTION (No Defaults)
     const rawId = site_id || body.id;
     if (!rawId) {
-      console.error("ERROR: No site_id provided")
+      console.error("CRITICAL ERROR: No site_id provided in request body", body)
       return new Response(JSON.stringify({ valid: false, error: 'Kiosk Error: Site ID missing' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const targetBayId = parseInt(rawId.toString())
-    const cleanPlate = plate.toUpperCase().replace(/\s+/g, ' ').trim()
+    console.log(`[STRICT ACTION] Request from: ${site_name} | Parsed Bay ID: ${targetBayId} | Plate: ${plate}`)
 
+    const cleanPlate = plate.toUpperCase().replace(/\s+/g, ' ').trim()
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -51,17 +52,15 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (error || !pkg) {
+      console.log(`[FAILED] No package for plate: ${cleanPlate}`)
       return new Response(JSON.stringify({ valid: false, error: 'No active package found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
+    const uniqueWashId = `${cleanPlate}-${Date.now()}`
 
-    // 3. GENERATE UNIQUE WASH ID (Timestamped)
-    // This is the "Lock" that prevents the ESP32 from firing twice
-    const uniqueWashId = `WASH-${cleanPlate}-${Date.now()}`;
-
-    // 4. TRIGGER THE SPECIFIC SITE
-    console.log(`[ACTION] Triggering Bay ${targetBayId} for ${site_name}`)
+    // 3. TRIGGER SPECIFIC BAY
+    console.log(`[DATABASE] Updating Bay ${targetBayId} to 'washing' state with ID: ${uniqueWashId}`)
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
@@ -73,9 +72,12 @@ Deno.serve(async (req) => {
       })
       .eq('id', targetBayId)
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error("[DATABASE ERROR]", updateError)
+      throw updateError;
+    }
 
-    // 5. Log the wash
+    // 4. Log the wash
     await supabase.from('package_wash_logs').insert({
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
@@ -87,14 +89,13 @@ Deno.serve(async (req) => {
       JSON.stringify({
         valid: true,
         wash_type: relayWashType,
-        vehicle_reg: pkg.vehicle_reg,
-        site_triggered: targetBayId,
+        bay_triggered: targetBayId,
         wash_id: uniqueWashId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
-    console.error('SERVER ERROR:', err)
+    console.error('RUNTIME ERROR:', err)
     return new Response(JSON.stringify({ valid: false, error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
