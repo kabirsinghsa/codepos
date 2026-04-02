@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,13 +56,58 @@ const Pos = () => {
         }
       } catch (err) {
         console.error("Error loading POS data:", err);
-        toast.error("Database connection error");
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, [userSiteId]);
+
+  const printReceipt = useCallback((receiptData: { items: BasketItem[]; total: number; date: Date; txId: string }) => {
+    const w = window.open('', '_blank', 'width=400,height=600');
+    if (!w) {
+      toast.error("Popup blocked! Please allow popups to print receipts.");
+      return;
+    }
+
+    const itemsHtml = receiptData.items.map(i => `
+      <tr>
+        <td style="text-align:left;padding:4px 0;">${i.product.name.toUpperCase()}</td>
+        <td style="text-align:center;padding:4px;">${i.quantity}</td>
+        <td style="text-align:right;padding:4px 0;">R${(i.product.price * i.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    w.document.write(`
+      <!DOCTYPE html><html><head><title>Bulldog Receipt</title>
+      <style>
+        body { font-family: 'Courier New', monospace; width: 280px; margin: 0 auto; padding: 20px; font-size: 12px; color: #000; line-height: 1.4; }
+        .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+        .header h1 { font-size: 18px; margin: 0; font-weight: 900; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .total-box { border-top: 2px dashed #000; padding-top: 10px; margin-top: 10px; text-align: right; }
+        .total-box p { font-size: 16px; font-weight: 900; margin: 0; }
+        .footer { text-align: center; margin-top: 20px; font-size: 10px; font-style: italic; }
+      </style></head>
+      <body>
+        <div class="header">
+          <h1>${businessName}</h1>
+          <p>${siteName ? `BRANCH: ${siteName.toUpperCase()}` : ''}</p>
+          <p>${businessPhone ? `TEL: ${businessPhone}` : ''}</p>
+          <p>${receiptData.date.toLocaleDateString()} ${receiptData.date.toLocaleTimeString()}</p>
+          <p style="font-size:9px; margin-top:4px;">TXID: ${receiptData.txId.toUpperCase()}</p>
+        </div>
+        <table>
+          <thead><tr style="border-bottom:1px solid #000;"><th align="left">ITEM</th><th>QTY</th><th align="right">TOTAL</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        <div class="total-box"><p>TOTAL: R${receiptData.total.toFixed(2)}</p></div>
+        <div class="footer"><p>Thank you for your business!</p></div>
+        <script>window.onload=function(){ window.print(); setTimeout(function(){ window.close(); }, 500); }</script>
+      </body></html>
+    `);
+    w.document.close();
+  }, [businessName, businessPhone, siteName]);
 
   const addToBasket = (product: PosProduct) => {
     setBasket(prev => {
@@ -118,60 +163,19 @@ const Pos = () => {
       const { error: itemsError } = await supabase.from('pos_transaction_items').insert(items as any);
       if (itemsError) throw itemsError;
 
-      setLastReceipt({ items: [...basket], total: basketTotal, date: new Date(), txId: tx.id });
+      const receipt = { items: [...basket], total: basketTotal, date: new Date(), txId: tx.id };
+      setLastReceipt(receipt);
       setBasket([]);
       toast.success('Sale completed!');
+
+      // AUTO-PRINT IMMEDIATELY
+      printReceipt(receipt);
+
     } catch (e: any) {
       toast.error(e.message || 'Checkout failed');
     } finally {
       setProcessing(false);
     }
-  };
-
-  const printReceipt = () => {
-    if (!lastReceipt) return;
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (!w) return;
-    const itemsHtml = lastReceipt.items.map(i => `
-      <tr>
-        <td style="text-align:left;padding:2px 0;">${i.product.name}</td>
-        <td style="text-align:center;padding:2px 4px;">${i.quantity}</td>
-        <td style="text-align:right;padding:2px 0;">R${(i.product.price * i.quantity).toFixed(2)}</td>
-      </tr>
-    `).join('');
-
-    w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title>
-      <style>
-        body { font-family: 'Courier New', monospace; width: 280px; margin: 0 auto; padding: 10px; font-size: 12px; color: #000; }
-        .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
-        .header h1 { font-size: 16px; margin: 0; }
-        .header p { margin: 2px 0; font-size: 11px; }
-        table { width: 100%; border-collapse: collapse; }
-        .divider { border-top: 1px dashed #000; margin: 8px 0; }
-        .total { font-size: 16px; font-weight: bold; text-align: right; }
-        .footer { text-align: center; margin-top: 12px; font-size: 10px; color: #666; }
-      </style></head><body>
-      <div class="header">
-        <h1>${businessName}</h1>
-        ${siteName ? `<p>Branch: ${siteName}</p>` : ''}
-        ${businessPhone ? `<p>Tel: ${businessPhone}</p>` : ''}
-        <p>${lastReceipt.date.toLocaleDateString()} ${lastReceipt.date.toLocaleTimeString()}</p>
-        <p style="font-size:9px;">TX: ${lastReceipt.txId.slice(0, 8).toUpperCase()}</p>
-      </div>
-      <table>
-        <thead><tr>
-          <th style="text-align:left;border-bottom:1px solid #000;padding-bottom:4px;">Item</th>
-          <th style="text-align:center;border-bottom:1px solid #000;padding-bottom:4px;">Qty</th>
-          <th style="text-align:right;border-bottom:1px solid #000;padding-bottom:4px;">Total</th>
-        </tr></thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      <div class="divider"></div>
-      <div class="total">TOTAL: R${lastReceipt.total.toFixed(2)}</div>
-      <div class="footer"><p>Thank you for your purchase!</p></div>
-      <script>window.onload=function(){window.print();}</script>
-    </body></html>`);
-    w.document.close();
   };
 
   const categories = [...new Set(products.map(p => p.category))];
@@ -189,28 +193,25 @@ const Pos = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col font-sans">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
           <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-            <ShoppingCart className="w-5 h-5" />
-          </div>
           <h1 className="text-lg font-black uppercase tracking-tight italic">Point of Sale</h1>
 
           {siteName && (
             <div className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900 text-zinc-100 rounded-full ml-4 border border-zinc-800 shadow-lg">
-              <Store className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{siteName} terminal</span>
+              <Store className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{siteName}</span>
             </div>
           )}
 
           <div className="ml-auto flex items-center gap-2">
             {lastReceipt && (
-              <Button variant="outline" size="sm" onClick={printReceipt} className="gap-2 font-black text-[10px] rounded-xl border-2">
-                <Printer className="w-4 h-4" /> REPRINT RECEIPT
+              <Button variant="outline" size="sm" onClick={() => printReceipt(lastReceipt)} className="gap-2 font-black text-[10px] rounded-xl border-2">
+                <Printer className="w-4 h-4" /> REPRINT
               </Button>
             )}
           </div>
@@ -220,94 +221,72 @@ const Pos = () => {
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
         <div className="flex-1 p-6 space-y-6 overflow-y-auto">
           <Input
-            placeholder="SEARCH CATALOG..."
+            placeholder="SEARCH PRODUCTS..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="bg-card border-2 border-border h-14 rounded-2xl px-6 font-black tracking-widest shadow-sm"
           />
 
-          {filtered.length === 0 ? (
-            <div className="text-center py-20 opacity-30 italic uppercase text-xs font-black tracking-widest">No matching items</div>
-          ) : (
-            categories.filter(cat => filtered.some(p => p.category === cat)).map(cat => (
-              <div key={cat} className="space-y-4">
-                <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] px-2 flex items-center gap-2">
-                  <div className="h-1 w-1 rounded-full bg-primary" /> {cat}
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filtered.filter(p => p.category === cat).map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => addToBasket(p)}
-                      className="group relative rounded-3xl border-2 border-border bg-card hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all text-left active:scale-95 overflow-hidden flex flex-col shadow-sm"
-                    >
-                      <div className="aspect-square overflow-hidden bg-muted">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-secondary/50">
-                            <ShoppingCart className="w-10 h-10 text-muted-foreground/20" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-4 space-y-1">
-                        <p className="font-black text-xs text-foreground truncate uppercase tracking-tight">{p.name}</p>
-                        <p className="text-xl font-black font-mono text-primary">R{Number(p.price).toFixed(2)}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+          {categories.filter(cat => filtered.some(p => p.category === cat)).map(cat => (
+            <div key={cat} className="space-y-4">
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] px-2 flex items-center gap-2">
+                <div className="h-1 w-1 rounded-full bg-primary" /> {cat}
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filtered.filter(p => p.category === cat).map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => addToBasket(p)}
+                    className="group relative rounded-3xl border-2 border-border bg-card hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all text-left active:scale-95 overflow-hidden flex flex-col shadow-sm"
+                  >
+                    <div className="aspect-square overflow-hidden bg-muted">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-secondary/50">
+                          <ShoppingCart className="w-10 h-10 text-muted-foreground/20" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 space-y-1">
+                      <p className="font-black text-xs text-foreground truncate uppercase tracking-tight">{p.name}</p>
+                      <p className="text-xl font-black font-mono text-primary">R{Number(p.price).toFixed(2)}</p>
+                    </div>
+                  </button>
+                ))}
               </div>
-            ))
-          )}
+            </div>
+          ))}
         </div>
 
-        {/* Basket sidebar */}
-        <div className="lg:w-[400px] border-t lg:border-t-0 lg:border-l-2 border-border bg-muted/10 flex flex-col backdrop-blur-xl">
-          <div className="p-8 border-b-2 border-border flex items-center justify-between">
-            <h2 className="font-black text-foreground flex items-center gap-3 uppercase tracking-widest text-base italic">
-              <Receipt className="w-5 h-5 text-primary" /> Active Basket
-            </h2>
-            {basketCount > 0 && (
-              <span className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded-full font-black shadow-lg">
-                {basketCount} UNITS
-              </span>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="lg:w-[400px] border-t lg:border-t-0 lg:border-l-2 border-border bg-muted/10 flex flex-col backdrop-blur-xl p-6">
+          <div className="flex-1 overflow-y-auto space-y-4">
             {basket.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center opacity-20 gap-6">
                 <ShoppingCart className="w-16 h-12" />
-                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Cart is empty</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Empty Cart</p>
               </div>
             ) : (
               basket.map(item => (
                 <div key={item.product.id} className="flex items-center gap-4 p-4 rounded-[1.5rem] bg-card border-2 border-border shadow-md">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black text-foreground truncate uppercase tracking-tighter">{item.product.name}</p>
+                    <p className="text-xs font-black text-foreground truncate uppercase">{item.product.name}</p>
                     <p className="text-[10px] font-black text-primary font-mono mt-1">R{Number(item.product.price).toFixed(2)}</p>
                   </div>
                   <div className="flex flex-col items-center gap-1.5 bg-muted rounded-2xl p-1.5">
-                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1.5 rounded-xl hover:bg-background text-primary transition-all">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1.5 rounded-xl hover:bg-background text-primary transition-all"><Plus className="w-3.5 h-3.5" /></button>
                     <span className="text-xs font-black font-mono w-6 text-center">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1.5 rounded-xl hover:bg-background text-muted-foreground transition-all">
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1.5 rounded-xl hover:bg-background text-muted-foreground transition-all"><Minus className="w-3.5 h-3.5" /></button>
                   </div>
-                  <button onClick={() => removeFromBasket(item.product.id)} className="p-2.5 rounded-2xl hover:bg-red-500/10 text-red-500 transition-colors">
-                    <Trash2 className="w-4.5 h-4.5" />
-                  </button>
+                  <button onClick={() => removeFromBasket(item.product.id)} className="p-2.5 rounded-2xl hover:bg-red-500/10 text-red-500 transition-colors"><Trash2 className="w-4.5 h-4.5" /></button>
                 </div>
               ))
             )}
           </div>
 
-          <div className="p-8 bg-card border-t-2 border-border space-y-6">
+          <div className="p-8 bg-card border-t-2 border-border space-y-6 mt-4 rounded-3xl shadow-2xl">
             <div className="flex justify-between items-center px-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Order Total</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Total</span>
               <p className="text-4xl font-black font-mono text-primary">R{basketTotal.toFixed(2)}</p>
             </div>
             <Button
@@ -316,7 +295,7 @@ const Pos = () => {
               className="w-full font-black py-8 rounded-[2rem] shadow-2xl uppercase tracking-[0.2em] bg-primary text-primary-foreground"
               size="lg"
             >
-              {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : "Finalize Sale"}
+              {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : "COMPLETE SALE"}
             </Button>
           </div>
         </div>
