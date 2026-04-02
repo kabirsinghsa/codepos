@@ -87,7 +87,7 @@ const Reports = () => {
 
     setCodes((codesRes.data as WashCodeRecord[]) || []);
     setPackageLogs((logsRes.data as PackageLogRecord[]) || []);
-    setPosTransactions((posRes.data as PosTransaction[]) || []);
+    setPosTransactions((posRes.data as unknown as PosTransaction[]) || []);
     setLoading(false);
   };
 
