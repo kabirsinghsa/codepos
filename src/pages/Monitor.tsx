@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Activity, Droplets, Clock, DollarSign, MapPin, ShieldCheck, Zap, AlertCircle } from 'lucide-react';
+import { Activity, Droplets, Clock, DollarSign, MapPin, ShieldCheck, Zap, AlertCircle, Package } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,7 +42,7 @@ const siteNames: Record<number, string> = {
 const Monitor = () => {
   const [bays, setBays] = useState<BayState[]>([]);
   const [recentWashes, setRecentWashes] = useState<RecentWash[]>([]);
-  const [todayStats, setTodayStats] = useState({ total: 0, revenue: 0, throughput: 0 });
+  const [todayStats, setTodayStats] = useState({ total: 0, revenue: 0, throughput: 0, activePackages: 0 });
 
   const fetchData = async () => {
     const { data: baysData } = await supabase.from('wash_bay_status').select('*').in('id', [1, 2, 3]).order('id', { ascending: true });
@@ -53,12 +53,23 @@ const Monitor = () => {
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+
+    // Fetch today's wash stats
     const { data: todayCodes } = await supabase.from('wash_codes').select('price, used').gte('created_at', todayStart.toISOString());
+
+    // Fetch currently active wash packages count
+    const { count: activePkgs } = await supabase
+      .from('wash_packages')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true)
+      .gt('end_date', new Date().toISOString());
+
     if (todayCodes) {
       setTodayStats({
         total: todayCodes.length,
         revenue: todayCodes.reduce((sum, c) => sum + Number(c.price), 0),
         throughput: todayCodes.filter(c => c.used).length,
+        activePackages: activePkgs || 0
       });
     }
   };
@@ -75,7 +86,7 @@ const Monitor = () => {
       <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+            <div className="h-10 w-10 rounded-xl bg-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/20">
               <Zap className="text-white w-6 h-6 fill-current" />
             </div>
             <div>
@@ -86,7 +97,7 @@ const Monitor = () => {
               </div>
             </div>
           </div>
-          <Link to="/" className="text-[10px] font-black px-6 py-2.5 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-all tracking-widest">
+          <Link to="/" className="text-[10px] font-black px-6 py-2.5 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-all tracking-widest text-orange-500">
             CONTROL PANEL
           </Link>
         </div>
@@ -96,18 +107,18 @@ const Monitor = () => {
         {/* Global Key Metrics */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { label: 'Intake Today', value: todayStats.total, icon: Activity, color: 'text-blue-400' },
-            { label: 'Throughput', value: todayStats.throughput, icon: ShieldCheck, color: 'text-emerald-400' },
-            { label: 'Active Sites', value: '3 / 3', icon: MapPin, color: 'text-purple-400' },
-            { label: 'Revenue Net', value: `R${todayStats.revenue.toFixed(0)}`, icon: DollarSign, color: 'text-amber-400' }
+            { label: 'Active Packages', value: todayStats.activePackages, icon: Package, color: 'text-orange-500' },
+            { label: 'Daily Throughput', value: todayStats.throughput, icon: ShieldCheck, color: 'text-emerald-400' },
+            { label: 'Network Nodes', value: '3 / 3', icon: MapPin, color: 'text-purple-400' },
+            { label: 'Cash Revenue', value: `R${todayStats.revenue.toFixed(0)}`, icon: DollarSign, color: 'text-amber-400' }
           ].map((stat, i) => (
-            <div key={i} className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5">
+            <div key={i} className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5 shadow-xl shadow-black/20">
               <div className={`p-4 rounded-xl bg-zinc-950 border border-zinc-800 ${stat.color}`}>
                 <stat.icon className="w-6 h-6" />
               </div>
               <div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{stat.label}</p>
-                <p className="text-3xl font-black font-mono mt-1 tracking-tighter">{stat.value}</p>
+                <p className="text-3xl font-black font-mono mt-1 tracking-tighter italic">{stat.value}</p>
               </div>
             </div>
           ))}
@@ -116,8 +127,10 @@ const Monitor = () => {
         {/* Site Nodes Grid */}
         <section className="space-y-6">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500">Live Station Deployment</h2>
-            <span className="text-[10px] font-bold text-zinc-600 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800">NODES: 001, 002, 003</span>
+            <h2 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-orange-500" /> Site Deployment Live Status
+            </h2>
+            <span className="text-[10px] font-bold text-zinc-600 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800">GLOBAL INTEL</span>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {[1, 2, 3].map((id) => {
@@ -128,51 +141,51 @@ const Monitor = () => {
                 <motion.div
                   key={id}
                   layout
-                  className={`relative rounded-[2rem] border-2 transition-all duration-700 p-8 space-y-8 ${theme.glow} ${theme.bg}`}
+                  className={`relative rounded-[2.5rem] border-2 transition-all duration-700 p-10 space-y-8 ${theme.glow} ${theme.bg}`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <h3 className="font-black text-2xl tracking-tighter">{siteNames[id]}</h3>
-                      <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Site ID: 00{id}</p>
+                      <h3 className="font-black text-3xl tracking-tighter uppercase italic">{siteNames[id]}</h3>
+                      <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Hardware Terminal 00{id}</p>
                     </div>
-                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${theme.text} border-current/20 bg-black/20`}>
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${theme.text} border-current/20 bg-black/20 shadow-inner`}>
                       {theme.label}
                     </div>
                   </div>
 
-                  <div className="min-h-[140px] flex flex-col justify-center">
+                  <div className="min-h-[160px] flex flex-col justify-center">
                     <AnimatePresence mode="wait">
                       {bay?.status === 'washing' ? (
                         <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="space-y-4"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="space-y-6"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="h-14 w-14 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 animate-pulse">
-                              <Droplets className="w-8 h-8" />
+                          <div className="flex items-center gap-5">
+                            <div className="h-16 w-16 rounded-[1.5rem] bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-500 animate-pulse shadow-lg shadow-orange-500/10">
+                              <Droplets className="w-10 h-10" />
                             </div>
                             <div>
-                              <p className="text-xs font-bold text-blue-400/60 uppercase tracking-widest italic">Current Program</p>
-                              <p className="font-black text-2xl uppercase tracking-tighter text-blue-400">{bay.current_wash_type} Wash</p>
+                              <p className="text-[10px] font-black text-orange-500/60 uppercase tracking-widest italic">Live Process</p>
+                              <p className="font-black text-3xl uppercase tracking-tighter text-white italic">{bay.current_wash_type} Wash</p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-500/10">
+                          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/5">
                             <div>
-                              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Auth Code</p>
-                              <p className="font-mono text-sm font-bold text-zinc-300">{bay.current_code}</p>
+                              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Active ID</p>
+                              <p className="font-mono text-sm font-black text-zinc-300">{bay.current_code}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Elapsed</p>
-                              <p className="font-mono text-sm font-bold text-blue-400">ACTIVE</p>
+                              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Status</p>
+                              <p className="font-black text-sm text-emerald-500 uppercase">RUNNING</p>
                             </div>
                           </div>
                         </motion.div>
                       ) : (
-                        <div className="text-center space-y-3 opacity-20">
-                          <ShieldCheck className="w-10 h-10 mx-auto text-zinc-500" />
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em]">System Standby</p>
+                        <div className="text-center space-y-4 opacity-10">
+                          <ShieldCheck className="w-14 h-14 mx-auto text-zinc-500" />
+                          <p className="text-[10px] font-black uppercase tracking-[0.4em]">Node Standby</p>
                         </div>
                       )}
                     </AnimatePresence>
@@ -184,30 +197,30 @@ const Monitor = () => {
         </section>
 
         {/* Console Log Feed */}
-        <section className="bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
-          <div className="bg-zinc-900/50 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-              <h2 className="text-[10px] font-black uppercase tracking-widest">System Activity Log</h2>
+        <section className="bg-zinc-950 border-2 border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <div className="bg-zinc-900/50 px-8 py-5 border-b border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)]" />
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Tactical Feed</h2>
             </div>
-            <span className="text-[9px] font-mono text-zinc-600">POLLING CLOUD...</span>
+            <span className="text-[9px] font-mono text-zinc-600 font-bold uppercase tracking-widest">Cloud Encrypted stream</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-zinc-900">
                 {recentWashes.map(w => (
-                  <tr key={w.id} className="hover:bg-zinc-900/50 transition-colors group">
-                    <td className="px-6 py-4 font-mono text-[11px] text-zinc-500">
-                      [{format(new Date(w.created_at), 'HH:mm:ss')}]
+                  <tr key={w.id} className="hover:bg-orange-500/5 transition-colors group">
+                    <td className="px-8 py-5 font-mono text-[11px] text-zinc-500">
+                      {format(new Date(w.created_at), 'HH:mm:ss')}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-[10px] font-black text-blue-500 uppercase tracking-tighter">Event::Wash_Triggered</span>
+                    <td className="px-8 py-5">
+                      <span className="text-[10px] font-black text-orange-500 uppercase tracking-tighter">Event::Node_Auth_Success</span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="font-bold text-zinc-300 uppercase tracking-tight">{w.wash_type} Service</span>
+                    <td className="px-8 py-5">
+                      <span className="font-black text-zinc-200 uppercase tracking-tight italic">{w.wash_type} Program</span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-mono text-xs font-black text-zinc-600">ID_{w.code}</span>
+                    <td className="px-8 py-5 text-right">
+                      <span className="font-mono text-xs font-black text-zinc-700">HASH_{w.code}</span>
                     </td>
                   </tr>
                 ))}
