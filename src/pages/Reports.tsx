@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getDaysInMonth } from 'date-fns';
-import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck, Tag, Globe, Store } from 'lucide-react';
+import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck, Tag, Globe, Store, Lock } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
@@ -36,7 +36,7 @@ interface PosTransaction {
 }
 
 const Reports = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, siteId: userSiteId } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [tab, setTab] = useState('overview');
@@ -92,11 +92,18 @@ const Reports = () => {
   useEffect(() => { fetchData(); }, [date, month, tab]);
 
   const statsBySite = useMemo(() => {
-    const siteData: Record<string, { codes: number; packages: number; washRevenue: number; posRevenue: number }> = {
-      'HEAD OFFICE': { codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
-      'HUDDLE': { codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
-      'BOKSBURG': { codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 }
+    const siteData: Record<string, { id: string | null; codes: number; packages: number; washRevenue: number; posRevenue: number }> = {
+      'HEAD OFFICE': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
+      'HUDDLE': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
+      'BOKSBURG': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 }
     };
+
+    // Link IDs to data
+    sites.forEach(s => {
+      if (siteData[s.name.toUpperCase()]) {
+        siteData[s.name.toUpperCase()].id = s.id;
+      }
+    });
 
     codes.forEach(c => {
       const matchedSite = sites.find(s => s.id === c.site_id);
@@ -122,8 +129,14 @@ const Reports = () => {
       }
     });
 
-    return Object.entries(siteData);
-  }, [codes, packageLogs, posTransactions, sites]);
+    // FILTER FOR STAFF: If not admin, only show their own site
+    let results = Object.entries(siteData);
+    if (!isAdmin && userSiteId) {
+      results = results.filter(([_, data]) => data.id === userSiteId);
+    }
+
+    return results;
+  }, [codes, packageLogs, posTransactions, sites, isAdmin, userSiteId]);
 
   const totalPosRevenue = useMemo(() => posTransactions.reduce((s, t) => s + Number(t.total), 0), [posTransactions]);
   const totalWashRevenue = useMemo(() => codes.reduce((s, c) => s + Number(c.price), 0), [codes]);
@@ -138,61 +151,71 @@ const Reports = () => {
             </div>
             <h1 className="text-lg font-bold tracking-tight uppercase italic">Intelligence Hub</h1>
           </div>
-          <Link to="/" className="text-[10px] font-black text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase tracking-widest bg-secondary px-3 py-1.5 rounded-full border border-border">
-            <ArrowLeft className="w-3 h-3" /> Dashboard
-          </Link>
+          <div className="flex items-center gap-4">
+            {!isAdmin && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-muted rounded-full border border-border">
+                <Lock className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[10px] font-black uppercase text-muted-foreground">Staff View</span>
+              </div>
+            )}
+            <Link to="/" className="text-[10px] font-black text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase tracking-widest bg-secondary px-3 py-1.5 rounded-full border border-border">
+              <ArrowLeft className="w-3 h-3" /> Dashboard
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-8">
-        {/* TOP LEVEL GLOBAL SUMMARY */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-primary/5 border-primary/20 shadow-lg border-2 rounded-3xl">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Global Active Packages</p>
-                  <p className="text-4xl font-black font-mono mt-1">{globalActivePackages}</p>
+        {/* TOP LEVEL GLOBAL SUMMARY - ONLY VISIBLE TO ADMIN */}
+        {isAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-primary/5 border-primary/20 shadow-lg border-2 rounded-3xl">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Global Active Packages</p>
+                    <p className="text-4xl font-black font-mono mt-1">{globalActivePackages}</p>
+                  </div>
+                  <div className="p-4 bg-primary/10 rounded-2xl"><ShieldCheck className="w-8 h-8 text-primary" /></div>
                 </div>
-                <div className="p-4 bg-primary/10 rounded-2xl"><ShieldCheck className="w-8 h-8 text-primary" /></div>
-              </div>
-              <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-primary/10 pt-2">VALID AT ALL SITES</p>
-            </CardContent>
-          </Card>
+                <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-primary/10 pt-2">VALID AT ALL SITES</p>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-orange-500/5 border-orange-500/20 shadow-lg border-2 rounded-3xl">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em]">Global Shop Revenue</p>
-                  <p className="text-4xl font-black font-mono mt-1 text-orange-600">R{totalPosRevenue.toFixed(0)}</p>
+            <Card className="bg-orange-500/5 border-orange-500/20 shadow-lg border-2 rounded-3xl">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em]">Global Shop Revenue</p>
+                    <p className="text-4xl font-black font-mono mt-1 text-orange-600">R{totalPosRevenue.toFixed(0)}</p>
+                  </div>
+                  <div className="p-4 bg-orange-500/10 rounded-2xl"><Tag className="w-8 h-8 text-orange-500" /></div>
                 </div>
-                <div className="p-4 bg-orange-500/10 rounded-2xl"><Tag className="w-8 h-8 text-orange-500" /></div>
-              </div>
-              <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-orange-500/10 pt-2">COMBINED POS SALES</p>
-            </CardContent>
-          </Card>
+                <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-orange-500/10 pt-2">COMBINED POS SALES</p>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-blue-500/5 border-blue-500/20 shadow-lg border-2 rounded-3xl">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Global Wash Revenue</p>
-                  <p className="text-4xl font-black font-mono mt-1 text-blue-600">R{totalWashRevenue.toFixed(0)}</p>
+            <Card className="bg-blue-500/5 border-blue-500/20 shadow-lg border-2 rounded-3xl">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Global Wash Revenue</p>
+                    <p className="text-4xl font-black font-mono mt-1 text-blue-600">R{totalWashRevenue.toFixed(0)}</p>
+                  </div>
+                  <div className="p-4 bg-blue-500/10 rounded-2xl"><ShoppingCart className="w-8 h-8 text-blue-500" /></div>
                 </div>
-                <div className="p-4 bg-blue-500/10 rounded-2xl"><ShoppingCart className="w-8 h-8 text-blue-500" /></div>
-              </div>
-              <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-blue-500/10 pt-2">CODE SALES ONLY</p>
-            </CardContent>
-          </Card>
-        </div>
+                <p className="text-[9px] text-muted-foreground mt-4 font-bold uppercase italic text-center border-t border-blue-500/10 pt-2">CODE SALES ONLY</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="bg-card p-4 rounded-3xl border border-border shadow-sm flex flex-col sm:flex-row gap-4 items-center">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Reporting Scope</label>
             <Tabs value={tab} onValueChange={setTab} className="w-full sm:w-auto">
               <TabsList className="bg-muted p-1 rounded-2xl">
-                <TabsTrigger value="overview" className="text-[10px] uppercase font-black px-8 py-2 rounded-xl">Site Performance</TabsTrigger>
+                <TabsTrigger value="overview" className="text-[10px] uppercase font-black px-8 py-2 rounded-xl">Performance</TabsTrigger>
                 <TabsTrigger value="pos" className="text-[10px] uppercase font-black px-8 py-2 rounded-xl">Shop Details</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -209,8 +232,8 @@ const Reports = () => {
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsContent value="overview" className="space-y-8 animate-in fade-in duration-500">
-            {/* PER-SITE PERFORMANCE BREAKDOWN */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* SITE CARDS (FILTERED BY USER ROLE) */}
+            <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'max-w-md mx-auto'} gap-6`}>
               {statsBySite.map(([name, data]) => (
                 <Card key={name} className="overflow-hidden border-2 border-border shadow-xl rounded-3xl group hover:border-primary/40 transition-all duration-300">
                   <CardHeader className="bg-muted/30 pb-4 border-b">
@@ -221,7 +244,7 @@ const Reports = () => {
                   </CardHeader>
                   <CardContent className="pt-8 space-y-6">
                     <div className="space-y-1 text-center">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Site Washes</p>
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Washes</p>
                       <p className="text-6xl font-black font-mono text-foreground tracking-tighter italic">{data.codes + data.packages}</p>
                     </div>
 
@@ -255,29 +278,25 @@ const Reports = () => {
               ))}
             </div>
 
-            {/* RAW DATA LOGS */}
+            {/* LOGS (FILTERED AUTOMATICALLY BY RECENT DATA) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <section className="space-y-4">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 flex items-center gap-2">
-                  <ShoppingCart className="w-4 h-4" /> Recent Code Redemptions
+                  <ShoppingCart className="w-4 h-4" /> Code Redemptions
                 </h2>
                 <div className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr className="text-muted-foreground text-left">
                         <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest">Code</th>
-                        <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest">Site</th>
                         <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-right">Price</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {codes.map(c => (
-                        <tr key={c.id} className="border-b border-border/50 hover:bg-blue-500/5 transition-colors">
+                      {codes.filter(c => isAdmin || c.site_id === userSiteId).map(c => (
+                        <tr key={c.id} className="border-b border-border/50">
                           <td className="px-6 py-4 font-mono font-bold text-primary">{c.code}</td>
-                          <td className="px-6 py-4 text-[9px] font-black uppercase">
-                            {sites.find(s => s.id === c.site_id)?.name || 'UNKNOWN'}
-                          </td>
-                          <td className="px-6 py-4 font-mono font-bold text-right">R{Number(c.price).toFixed(2)}</td>
+                          <td className="px-6 py-4 font-mono font-bold text-right text-xs">R{Number(c.price).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -287,24 +306,24 @@ const Reports = () => {
 
               <section className="space-y-4">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Recent Package Redemptions
+                  <CheckCircle2 className="w-4 h-4" /> Package Redemptions
                 </h2>
                 <div className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr className="text-muted-foreground text-left">
                         <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest">Vehicle</th>
-                        <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest">Site</th>
                         <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-right">Time</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {packageLogs.map(p => (
-                        <tr key={p.id} className="border-b border-border/50 hover:bg-purple-500/5 transition-colors">
+                      {packageLogs.filter(p => {
+                        if (isAdmin) return true;
+                        const siteName = sites.find(s => s.id === userSiteId)?.name.toUpperCase();
+                        return (p.site_name || '').toUpperCase() === siteName;
+                      }).map(p => (
+                        <tr key={p.id} className="border-b border-border/50">
                           <td className="px-6 py-4 font-mono font-bold text-foreground uppercase">{p.vehicle_reg}</td>
-                          <td className="px-6 py-4 text-[9px] font-black uppercase">
-                            {p.site_name || 'UNKNOWN'}
-                          </td>
                           <td className="px-6 py-4 text-[10px] text-muted-foreground font-mono text-right font-bold tracking-tighter">
                             {format(new Date(p.washed_at), 'HH:mm')}
                           </td>
@@ -319,26 +338,26 @@ const Reports = () => {
 
           <TabsContent value="pos" className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 gap-4">
-              {posTransactions.map(t => (
+              {posTransactions.filter(t => isAdmin || t.site_id === userSiteId).map(t => (
                 <div key={t.id} className="bg-card border border-border p-6 rounded-3xl shadow-sm flex items-center justify-between hover:border-orange-500/30 transition-all">
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-orange-500/10 rounded-2xl"><Store className="w-5 h-5 text-orange-500" /></div>
                     <div>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Branch Location</p>
-                      <p className="font-bold text-sm uppercase">{sites.find(s => s.id === t.site_id)?.name || 'UNKNOWN'}</p>
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sale Reference</p>
+                      <p className="font-mono text-xs font-bold uppercase">{t.id.slice(0, 8)}</p>
                     </div>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Transaction Ref</p>
-                    <p className="font-mono text-xs font-bold">{t.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Time</p>
+                    <p className="font-bold text-xs">{format(new Date(t.created_at), 'dd MMM, HH:mm')}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</p>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sale Total</p>
                     <p className="text-2xl font-black font-mono text-orange-500">R{Number(t.total).toFixed(2)}</p>
                   </div>
                 </div>
               ))}
-              {posTransactions.length === 0 && <div className="py-20 text-center text-muted-foreground italic uppercase tracking-widest text-xs">No Shop sales for this period</div>}
+              {posTransactions.filter(t => isAdmin || t.site_id === userSiteId).length === 0 && <div className="py-20 text-center text-muted-foreground italic uppercase tracking-widest text-xs">No Shop sales for this period</div>}
             </div>
           </TabsContent>
         </Tabs>
