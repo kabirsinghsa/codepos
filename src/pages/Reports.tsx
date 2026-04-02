@@ -34,7 +34,6 @@ interface PosTransaction {
   total: number;
   site_id?: string | null;
   created_at: string;
-  site_id: string | null;
 }
 
 const Reports = () => {
