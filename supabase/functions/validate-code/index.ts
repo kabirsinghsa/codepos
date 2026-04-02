@@ -82,6 +82,9 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Generate a unique ID for the hardware to see
+    const uniqueWashId = `${code}-${Date.now()}`;
+
     // If not found locally, try the master site for package codes
     if (!washCode) {
       const masterUrl = await getMasterSiteUrl(supabase)
@@ -93,7 +96,7 @@ Deno.serve(async (req) => {
             .update({
               status: 'washing',
               current_wash_type: masterResult.wash_type,
-              current_code: masterResult.code,
+              current_code: uniqueWashId,
               started_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
@@ -128,7 +131,7 @@ Deno.serve(async (req) => {
         .update({
           status: 'washing',
           current_wash_type: washCode.wash_type,
-          current_code: washCode.code,
+          current_code: uniqueWashId,
           started_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -140,6 +143,7 @@ Deno.serve(async (req) => {
         valid: true,
         wash_type: washCode.wash_type,
         code: washCode.code,
+        wash_id: uniqueWashId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
