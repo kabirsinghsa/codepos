@@ -6,42 +6,45 @@
 
 @layer base {
   :root {
-    --background: 220 20% 8%;
-    --foreground: 200 20% 90%;
+    /* Main Theme: High-Contrast Orange & Deep Zinc */
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
 
-    --card: 220 18% 12%;
-    --card-foreground: 200 20% 90%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 220 18% 14%;
-    --popover-foreground: 200 20% 90%;
+    --popover: 240 10% 4%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 180 70% 50%;
-    --primary-foreground: 220 20% 8%;
+    /* Brand Primary: Professional Orange */
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 200 20% 80%;
+    --secondary: 240 6% 10%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 220 15% 16%;
-    --muted-foreground: 200 10% 50%;
+    --muted: 240 6% 10%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 35 90% 55%;
-    --accent-foreground: 220 20% 8%;
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
-    --ring: 180 70% 50%;
+    --border: 240 6% 12%;
+    --input: 240 6% 12%;
+    --ring: 24 95% 53%;
 
-    --radius: 0.5rem;
+    --radius: 1rem;
 
-    --wash-basic: 180 70% 50%;
-    --wash-standard: 210 80% 55%;
-    --wash-premium: 280 70% 55%;
-    --wash-ultimate: 35 90% 55%;
+    /* Custom Wash Colors */
+    --wash-basic: 24 95% 53%;
+    --wash-standard: 20 90% 48%;
+    --wash-premium: 15 85% 45%;
+    --wash-ultimate: 10 80% 40%;
 
-    --success: 145 65% 42%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 98%;
 
     --font-mono: 'JetBrains Mono', monospace;
@@ -55,7 +58,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
   }
 }
@@ -66,10 +69,14 @@
   }
   
   .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3), 0 0 60px hsl(var(--primary) / 0.1);
+    box-shadow: 0 0 25px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.15);
   }
 
   .glow-text {
-    text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
+    text-shadow: 0 0 15px hsl(var(--primary) / 0.6);
+  }
+
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl;
   }
 }
