@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import Index from "./pages/Index";
 import Kiosk from "./pages/Kiosk";
-import Monitor from "./pages/Monitor";
+
 import Reports from "./pages/Reports";
 import UserManagement from "./pages/UserManagement";
 import WashPricing from "./pages/WashPricing";
