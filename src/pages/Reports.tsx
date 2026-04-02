@@ -32,8 +32,8 @@ interface PackageLogRecord {
 interface PosTransaction {
   id: string;
   total: number;
+  site_id?: string | null;
   created_at: string;
-  site_id: string | null;
 }
 
 const Reports = () => {
@@ -87,7 +87,7 @@ const Reports = () => {
 
     setCodes((codesRes.data as WashCodeRecord[]) || []);
     setPackageLogs((logsRes.data as PackageLogRecord[]) || []);
-    setPosTransactions((posRes.data as PosTransaction[]) || []);
+    setPosTransactions((posRes.data as unknown as PosTransaction[]) || []);
     setLoading(false);
   };
 

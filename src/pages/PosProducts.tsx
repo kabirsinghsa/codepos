@@ -62,10 +62,10 @@ const PosProducts = () => {
 
   const fetchStock = async (product: PosProduct) => {
     setSelectedProduct(product);
-    const { data: invData } = await supabase
+    const { data: invData } = await (supabase as any)
       .from('pos_inventory')
       .select('site_id, quantity')
-      .eq('product_id', product.id);
+      .eq('product_id', product.id) as { data: { site_id: string; quantity: number }[] | null };
 
     const mappedInv = sites.map(s => {
       const existing = invData?.find(i => i.site_id === s.id);
@@ -96,7 +96,7 @@ const PosProducts = () => {
         updated_at: new Date().toISOString()
       }));
 
-      const { error } = await supabase.from('pos_inventory').upsert(upserts, { onConflict: 'product_id,site_id' });
+      const { error } = await (supabase as any).from('pos_inventory').upsert(upserts, { onConflict: 'product_id,site_id' });
       if (error) throw error;
       toast.success('Inventory updated');
       setStockDialogOpen(false);
