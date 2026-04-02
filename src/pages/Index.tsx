@@ -1,16 +1,16 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { WashType, WashCode, WASH_OPTIONS, DEFAULT_PRICES, createWashCode, getCodeStatus } from '@/lib/codeGenerator';
 import { WashTypeCard } from '@/components/WashTypeCard';
 import { CodeDisplay } from '@/components/CodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, Monitor, QrCode } from 'lucide-react';
+import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, Monitor, QrCode, Save, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Footer from '@/components/Footer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type FilterType = 'all' | 'active' | 'used' | 'expired';
 
@@ -49,6 +49,9 @@ const Index = () => {
   const [businessPhone, setBusinessPhone] = useState('000-000-0000');
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
   const [receiptFooter, setReceiptFooter] = useState('Scan QR code at the wash bay to start.');
+  const [posReceiptHeader, setPosReceiptHeader] = useState('BULLDOG POS RECEIPT');
+  const [posReceiptFooter, setPosReceiptFooter] = useState('Thank you for your purchase!');
+
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -56,18 +59,12 @@ const Index = () => {
   const [selectedExtras, setSelectedExtras] = useState<Set<string>>(new Set());
   const [isMultiWash, setIsMultiWash] = useState(false);
   const [washQuantity, setWashQuantity] = useState(5);
-  const [masterSiteUrl, setMasterSiteUrl] = useState('');
   const [siteName, setSiteName] = useState('');
   const [packagesEnabled, setPackagesEnabled] = useState(false);
   const [unlimitedPackagesEnabled, setUnlimitedPackagesEnabled] = useState(false);
   const [packageExteriorPrice, setPackageExteriorPrice] = useState('500');
   const [packageInteriorPrice, setPackageInteriorPrice] = useState('800');
   const [posEnabled, setPosEnabled] = useState(false);
-  const [payfastEnabled, setPayfastEnabled] = useState(false);
-  const [payfastMerchantId, setPayfastMerchantId] = useState('');
-  const [payfastMerchantKey, setPayfastMerchantKey] = useState('');
-  const [payfastPassphrase, setPayfastPassphrase] = useState('');
-  const [payfastSandbox, setPayfastSandbox] = useState(true);
   const [activePackagesCount, setActivePackagesCount] = useState(0);
 
   useEffect(() => {
@@ -78,20 +75,16 @@ const Index = () => {
           if (row.key === 'business_name') setBusinessName(row.value);
           if (row.key === 'business_phone') setBusinessPhone(row.value);
           if (row.key === 'receipt_footer') setReceiptFooter(row.value);
+          if (row.key === 'pos_receipt_header') setPosReceiptHeader(row.value);
+          if (row.key === 'pos_receipt_footer') setPosReceiptFooter(row.value);
           if (row.key === 'expiry_days') setExpiryDays(Number(row.value) || 1);
           if (row.key === 'multi_wash_days') setMultiWashDays(Number(row.value) || 30);
-          if (row.key === 'master_site_url') setMasterSiteUrl(row.value);
           if (row.key === 'site_name') setSiteName(row.value);
           if (row.key === 'packages_enabled') setPackagesEnabled(row.value === 'true');
           if (row.key === 'unlimited_packages_enabled') setUnlimitedPackagesEnabled(row.value === 'true');
           if (row.key === 'package_exterior_price') setPackageExteriorPrice(row.value);
           if (row.key === 'package_interior_price') setPackageInteriorPrice(row.value);
           if (row.key === 'pos_enabled') setPosEnabled(row.value === 'true');
-          if (row.key === 'payfast_enabled') setPayfastEnabled(row.value === 'true');
-          if (row.key === 'payfast_merchant_id') setPayfastMerchantId(row.value);
-          if (row.key === 'payfast_merchant_key') setPayfastMerchantKey(row.value);
-          if (row.key === 'payfast_passphrase') setPayfastPassphrase(row.value);
-          if (row.key === 'payfast_sandbox') setPayfastSandbox(row.value === 'true');
         });
       }
     };
@@ -182,14 +175,6 @@ const Index = () => {
     setPrice(dbPrices[vehicleType]?.[selectedWash] ?? DEFAULT_PRICES[selectedWash]);
   };
 
-  const toggleExtra = (id: string) => {
-    setSelectedExtras((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
     try {
@@ -241,6 +226,22 @@ const Index = () => {
     fetchCodes();
     toast.info('Status updated');
   }, [codes, fetchCodes]);
+
+  const handleSaveSettings = async () => {
+    const updates = [
+      { key: 'business_name', value: businessName },
+      { key: 'business_phone', value: businessPhone },
+      { key: 'receipt_footer', value: receiptFooter },
+      { key: 'pos_receipt_header', value: posReceiptHeader },
+      { key: 'pos_receipt_footer', value: posReceiptFooter }
+    ];
+    const { error } = await supabase.from('business_settings').upsert(updates, { onConflict: 'key' });
+    if (error) {
+      toast.error('Failed to save settings');
+    } else {
+      toast.success('Receipt configurations updated');
+    }
+  };
 
   const filteredCodes = codes.filter((c) => filter === 'all' || getCodeStatus(c) === filter);
   const activeCount = codes.filter((c) => getCodeStatus(c) === 'active').length;
@@ -299,8 +300,7 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-10">
         {showSettings && (
-          <motion.section initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5"><Settings className="w-32 h-32" /></div>
+          <motion.section initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-2xl space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
               <Button variant="outline" onClick={() => navigate('/reports')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><BarChart3 className="w-5 h-5" /> Business Reports</Button>
               <Button variant="outline" onClick={() => navigate('/pricing')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><DollarSign className="w-5 h-5" /> Wash Pricing</Button>
@@ -310,6 +310,42 @@ const Index = () => {
               <Button variant="outline" onClick={() => navigate('/sites')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><MapPin className="w-5 h-5" /> Branch Sites</Button>
               <Button variant="outline" onClick={() => navigate('/package-orders')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><ClipboardList className="w-5 h-5" /> Online Orders</Button>
               <Button variant="outline" onClick={() => navigate('/install')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 border-primary text-primary hover:bg-primary/5"><QrCode className="w-5 h-5" /> System Deployment</Button>
+            </div>
+
+            <div className="border-t border-border pt-8 space-y-6">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-2">
+                <Printer className="w-4 h-4" /> Printer Receipt Customization
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Wash Code Receipt */}
+                <div className="space-y-4 p-6 bg-zinc-900/50 rounded-3xl border border-border shadow-inner">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground underline underline-offset-4 decoration-primary">Wash Code Receipt</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Footer</label>
+                      <Input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* POS Receipt */}
+                <div className="space-y-4 p-6 bg-zinc-900/50 rounded-3xl border border-border shadow-inner">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground underline underline-offset-4 decoration-orange-500">POS Shop Receipt</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Header</label>
+                      <Input value={posReceiptHeader} onChange={(e) => setPosReceiptHeader(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Footer</label>
+                      <Input value={posReceiptFooter} onChange={(e) => setPosReceiptFooter(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Button onClick={handleSaveSettings} className="w-full rounded-2xl gap-2 font-black uppercase text-xs tracking-widest py-6 shadow-xl shadow-primary/10">
+                <Save className="w-4 h-4" /> Save Receipt Configurations
+              </Button>
             </div>
           </motion.section>
         )}
@@ -362,7 +398,7 @@ const Index = () => {
           {/* Right Panel: Feed */}
           <div className="lg:col-span-5 space-y-6">
             <div className="flex items-center justify-between px-2">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Live Code Stream</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Live Code Stream</h2>
               <div className="flex gap-1">
                 {(['all', 'active', 'used'] as FilterType[]).map((f) => (
                   <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border transition-all ${filter === f ? 'bg-primary border-primary text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
@@ -372,7 +408,7 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="space-y-4 overflow-y-auto max-h-[800px] pr-2 custom-scrollbar">
+            <div className="space-y-4 overflow-y-auto max-h-[800px] pr-2 custom-scrollbar text-orange-500">
               {filteredCodes.length === 0 ? (
                 <div className="py-20 text-center opacity-20 italic uppercase text-[10px] font-black tracking-widest">No matching transactions</div>
               ) : (
