@@ -5,21 +5,20 @@ import { CodeDisplay } from '@/components/CodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Printer, Car, ShoppingCart, Package, MapPin, ClipboardList } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { Zap, Plus, Filter, Settings, Loader2, Save, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, Monitor, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Footer from '@/components/Footer';
+
 type FilterType = 'all' | 'active' | 'used' | 'expired';
 
 const VEHICLE_TYPES = [
-{ id: 'small_medium', label: 'Small/Medium Cars' },
-{ id: 'bakkie_suv', label: 'Bakkies/SUV' },
-{ id: 'quantum', label: 'Quantum' }] as
-const;
+  { id: 'small_medium', label: 'Small/Medium' },
+  { id: 'bakkie_suv', label: 'Bakkie/SUV' },
+  { id: 'quantum', label: 'Quantum' }
+] as const;
 
 interface WashExtra {
   id: string;
@@ -70,12 +69,10 @@ const Index = () => {
   const [payfastPassphrase, setPayfastPassphrase] = useState('');
   const [payfastSandbox, setPayfastSandbox] = useState(true);
   const [activePackagesCount, setActivePackagesCount] = useState(0);
-  // Load business settings from database
+
   useEffect(() => {
     const fetchSettings = async () => {
-      const { data } = await supabase.
-      from('business_settings').
-      select('key, value');
+      const { data } = await supabase.from('business_settings').select('key, value');
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
@@ -101,7 +98,6 @@ const Index = () => {
     fetchSettings();
   }, []);
 
-  // Load active packages count
   useEffect(() => {
     const fetchActivePackages = async () => {
       let query = supabase
@@ -116,12 +112,9 @@ const Index = () => {
     fetchActivePackages();
   }, [siteId]);
 
-  // Load prices from database
   useEffect(() => {
     const fetchPrices = async () => {
-      const { data } = await supabase.
-      from('wash_prices').
-      select('wash_type, vehicle_type, price');
+      const { data } = await supabase.from('wash_prices').select('wash_type, vehicle_type, price');
       if (data) {
         const priceMap: Record<string, Record<string, number>> = {};
         data.forEach((row: any) => {
@@ -135,7 +128,6 @@ const Index = () => {
     fetchPrices();
   }, []);
 
-  // Load codes from database
   const fetchCodes = useCallback(async () => {
     let query = supabase
       .from('wash_codes')
@@ -147,7 +139,6 @@ const Index = () => {
 
     if (error) {
       toast.error('Failed to load codes');
-      console.error(error);
     } else if (data) {
       setCodes(data.map((row) => ({
         id: row.id,
@@ -168,29 +159,17 @@ const Index = () => {
     setLoading(false);
   }, [siteId]);
 
-  useEffect(() => {
-    fetchCodes();
-  }, [fetchCodes]);
+  useEffect(() => { fetchCodes(); }, [fetchCodes]);
 
-  // Load extras from database
   useEffect(() => {
     const fetchExtras = async () => {
-      const { data } = await supabase.
-      from('wash_extras').
-      select('*').
-      eq('active', true).
-      order('name');
-      if (data) {
-        setExtras(data as WashExtra[]);
-      }
+      const { data } = await supabase.from('wash_extras').select('*').eq('active', true).order('name');
+      if (data) setExtras(data as WashExtra[]);
     };
     fetchExtras();
   }, []);
 
-  const extrasTotal = extras.
-  filter((e) => selectedExtras.has(e.id)).
-  reduce((sum, e) => sum + Number(e.price), 0);
-
+  const extrasTotal = extras.filter((e) => selectedExtras.has(e.id)).reduce((sum, e) => sum + Number(e.price), 0);
   const totalPrice = price + extrasTotal;
 
   const handleWashSelect = (type: WashType) => {
@@ -206,8 +185,7 @@ const Index = () => {
   const toggleExtra = (id: string) => {
     setSelectedExtras((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);else
-      next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -216,11 +194,7 @@ const Index = () => {
     setGenerating(true);
     try {
       const expiresAt = new Date();
-      if (isMultiWash) {
-        expiresAt.setDate(expiresAt.getDate() + multiWashDays);
-      } else {
-        expiresAt.setDate(expiresAt.getDate() + expiryDays);
-      }
+      expiresAt.setDate(expiresAt.getDate() + (isMultiWash ? multiWashDays : expiryDays));
       const finalPrice = isMultiWash ? totalPrice * washQuantity : totalPrice;
       const newCode = createWashCode(selectedWash, expiresAt, codes, customerPhone.trim(), finalPrice);
 
@@ -242,502 +216,177 @@ const Index = () => {
 
       if (error) {
         toast.error('Failed to save code');
-        console.error(error);
         return;
       }
 
       await fetchCodes();
-      toast.success(`Code ${newCode.code} generated — ${isMultiWash ? washQuantity + ' washes' : WASH_OPTIONS.find((w) => w.id === selectedWash)!.name}`);
+      toast.success(`Code ${newCode.code} generated!`);
       setCustomerPhone('');
       setSelectedExtras(new Set());
       setIsMultiWash(false);
-      setWashQuantity(5);
     } finally {
       setGenerating(false);
     }
-  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId]);
+  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId, extras, selectedExtras, multiWashDays, selectedVehicle, fetchCodes]);
 
   const handleMarkUsed = useCallback(async (id: string) => {
     const code = codes.find((c) => c.id === id);
     if (!code) return;
-
     const newWashesUsed = code.washesUsed + 1;
     const isFullyUsed = code.totalWashes <= 1 || newWashesUsed >= code.totalWashes;
+    const { error } = await supabase.from('wash_codes').update({
+      washes_used: newWashesUsed, used: isFullyUsed, used_at: isFullyUsed ? new Date().toISOString() : null
+    } as any).eq('id', id);
+    if (error) { toast.error('Update failed'); return; }
+    fetchCodes();
+    toast.info('Status updated');
+  }, [codes, fetchCodes]);
 
-    const { error } = await supabase.
-    from('wash_codes').
-    update({
-      washes_used: newWashesUsed,
-      used: isFullyUsed,
-      used_at: isFullyUsed ? new Date().toISOString() : null
-    } as any).
-    eq('id', id);
-
-    if (error) {
-      toast.error('Failed to update code');
-      return;
-    }
-    setCodes((prev) => prev.map((c) => c.id === id ? {
-      ...c,
-      washesUsed: newWashesUsed,
-      used: isFullyUsed,
-      usedAt: isFullyUsed ? new Date() : undefined
-    } : c));
-    toast.info(code.totalWashes > 1 ?
-    `Wash ${newWashesUsed}/${code.totalWashes} used` :
-    'Code marked as used');
-  }, [codes]);
-
-  const filteredCodes = codes.filter((c) => {
-    if (filter === 'all') return true;
-    return getCodeStatus(c) === filter;
-  });
-
+  const filteredCodes = codes.filter((c) => filter === 'all' || getCodeStatus(c) === filter);
   const activeCount = codes.filter((c) => getCodeStatus(c) === 'active').length;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>);
-
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground font-sans">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <Droplets className="w-6 h-6" />
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary glow-primary">
+              <Droplets className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black uppercase tracking-tighter italic">{businessName}</h1>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Enterprise Command Center</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-foreground">{businessName}</h1>
-            <p className="text-xs text-muted-foreground font-mono">Code Generator</p>
-          </div>
-          <div className="ml-auto flex items-center gap-4">
-            {posEnabled && (
-              <button onClick={() => navigate('/pos')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Point of Sale">
+
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex gap-8">
+              <div className="text-center">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active Codes</p>
+                <p className="text-2xl font-black font-mono text-primary leading-none">{activeCount}</p>
+              </div>
+              <div className="text-center border-l border-border pl-8">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active Packages</p>
+                <p className="text-2xl font-black font-mono text-orange-500 leading-none">{activePackagesCount}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/pos')} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-orange-500 hover:scale-105 transition-all shadow-lg" title="Shop POS">
                 <ShoppingCart className="w-5 h-5" />
               </button>
-            )}
-            {packagesEnabled && (
-              <button onClick={() => navigate('/packages')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Wash Packages">
-                <Car className="w-5 h-5" />
+              <button onClick={() => navigate('/monitor')} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-blue-500 hover:scale-105 transition-all shadow-lg" title="Live Monitor">
+                <Monitor className="w-5 h-5" />
               </button>
-            )}
-            {isAdmin &&
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Settings">
+              <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-2xl border transition-all shadow-lg ${showSettings ? 'bg-primary text-white border-primary' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}>
                 <Settings className="w-5 h-5" />
               </button>
-            }
-            {!isAdmin &&
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/reports')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Reports">
-                <BarChart3 className="w-5 h-5" />
-              </button>
-              <button onClick={signOut} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Sign Out">
+              <button onClick={signOut} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-red-500 hover:bg-red-500/10 transition-all shadow-lg">
                 <LogOut className="w-5 h-5" />
               </button>
-            </div>
-            }
-            <div className="text-right">
-              <div>
-                <span className="text-2xl font-bold font-mono text-primary">{activeCount}</span>
-                <p className="text-xs text-muted-foreground">Active Codes</p>
-              </div>
-              {unlimitedPackagesEnabled && (
-                <div className="mt-1">
-                  <span className="text-2xl font-bold font-mono text-primary">{activePackagesCount}</span>
-                  <p className="text-xs text-muted-foreground">Active Packages</p>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        {posEnabled && (
-          <Button
-            onClick={() => navigate('/pos')}
-            className="w-full gap-2 text-base py-6"
-            size="lg"
-          >
-            <ShoppingCart className="w-5 h-5" />
-            Point of Sale
-          </Button>
+      <main className="max-w-7xl mx-auto px-4 py-8 space-y-10">
+        {showSettings && (
+          <motion.section initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5"><Settings className="w-32 h-32" /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+              <Button variant="outline" onClick={() => navigate('/reports')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><BarChart3 className="w-5 h-5" /> Business Reports</Button>
+              <Button variant="outline" onClick={() => navigate('/pricing')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><DollarSign className="w-5 h-5" /> Wash Pricing</Button>
+              <Button variant="outline" onClick={() => navigate('/users')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Users className="w-5 h-5" /> User Access</Button>
+              <Button variant="outline" onClick={() => navigate('/packages')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Car className="w-5 h-5" /> Manage Packages</Button>
+              <Button variant="outline" onClick={() => navigate('/pos-products')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Package className="w-5 h-5" /> Shop Catalog</Button>
+              <Button variant="outline" onClick={() => navigate('/sites')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><MapPin className="w-5 h-5" /> Branch Sites</Button>
+              <Button variant="outline" onClick={() => navigate('/package-orders')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><ClipboardList className="w-5 h-5" /> Online Orders</Button>
+              <Button variant="outline" onClick={() => navigate('/install')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 border-primary text-primary hover:bg-primary/5"><QrCode className="w-5 h-5" /> System Deployment</Button>
+            </div>
+          </motion.section>
         )}
 
-        {showSettings &&
-        <section className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Receipt Settings</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Business Name (receipt header)</label>
-                <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="BULLDOG CARWASH" className="bg-secondary border-border" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Business Phone (shown on receipt)</label>
-                <Input value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} placeholder="000-000-0000" className="bg-secondary border-border" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs text-muted-foreground mb-1 block">Receipt Footer Message</label>
-                <Input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} placeholder="Scan QR code at the wash bay to start." className="bg-secondary border-border" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Single Wash Expiry (days)</label>
-                <Input type="number" min={1} value={expiryDays} onChange={(e) => setExpiryDays(Number(e.target.value) || 1)} className="bg-secondary border-border" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Multi-Wash Expiry (days)</label>
-                <Input type="number" min={1} value={multiWashDays} onChange={(e) => setMultiWashDays(Number(e.target.value) || 1)} className="bg-secondary border-border" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Site Name</label>
-                <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} placeholder="e.g. Main Branch, CBD, Mall" className="bg-secondary border-border" />
-                <p className="text-xs text-muted-foreground mt-1">Identifies this location in package wash reports</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Master Site URL (cross-site packages)</label>
-                <Input value={masterSiteUrl} onChange={(e) => setMasterSiteUrl(e.target.value)} placeholder="https://vpjjzekbtpagjaauxood.supabase.co" className="bg-secondary border-border" />
-              </div>
-              <div className="sm:col-span-2 mt-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Feature Toggles</h3>
-                <div className="space-y-3">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={posEnabled} onChange={(e) => setPosEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
-                    <div>
-                      <span className={`text-sm font-medium ${posEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>Point of Sale (POS)</span>
-                      <p className="text-xs text-muted-foreground">Enable POS system for selling items like coffee, snacks, etc.</p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={unlimitedPackagesEnabled} onChange={(e) => setUnlimitedPackagesEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
-                    <div>
-                      <span className={`text-sm font-medium ${packagesEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>Unlimited Washes</span>
-                      <p className="text-xs text-muted-foreground">Package holders get unlimited washes for the duration</p>
-                    </div>
-                  </label>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left Panel: Configuration */}
+          <div className="lg:col-span-7 space-y-8">
+            <section className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-xl space-y-8">
+              <div className="space-y-4">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">01. Vehicle Category</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  {VEHICLE_TYPES.map((vt) => (
+                    <button key={vt.id} onClick={() => handleVehicleSelect(vt.id)} className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${selectedVehicle === vt.id ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:bg-zinc-800'}`}>
+                      {vt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="sm:col-span-2 mt-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Package Prices (Monthly)</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Ultimate Wash Exterior (R)</label>
-                    <Input type="number" min={0} value={packageExteriorPrice} onChange={(e) => setPackageExteriorPrice(e.target.value)} className="font-mono bg-secondary border-border" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Ultimate Wash with Interior (R)</label>
-                    <Input type="number" min={0} value={packageInteriorPrice} onChange={(e) => setPackageInteriorPrice(e.target.value)} className="font-mono bg-secondary border-border" />
-                  </div>
-                </div>
-              </div>
-              <div className="sm:col-span-2 mt-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">PayFast Settings</h3>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={payfastEnabled} onChange={(e) => setPayfastEnabled(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
-                    <span className="text-sm font-medium text-foreground">Enable PayFast</span>
-                  </label>
-                </div>
-                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${!payfastEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Merchant ID</label>
-                    <Input value={payfastMerchantId} onChange={(e) => setPayfastMerchantId(e.target.value)} placeholder="e.g. 10000100" className="font-mono bg-secondary border-border" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Merchant Key</label>
-                    <Input value={payfastMerchantKey} onChange={(e) => setPayfastMerchantKey(e.target.value)} placeholder="e.g. 46f0cd694581a" className="font-mono bg-secondary border-border" type="password" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Passphrase</label>
-                    <Input value={payfastPassphrase} onChange={(e) => setPayfastPassphrase(e.target.value)} placeholder="Your PayFast passphrase" className="font-mono bg-secondary border-border" type="password" />
-                  </div>
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-3 cursor-pointer pb-2">
-                      <input type="checkbox" checked={payfastSandbox} onChange={(e) => setPayfastSandbox(e.target.checked)} className="w-4 h-4 rounded border-border accent-primary" />
-                      <div>
-                        <span className="text-sm font-medium text-foreground">Sandbox Mode</span>
-                        <p className="text-xs text-muted-foreground">Use PayFast test environment</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div className="sm:col-span-2 mt-2">
-                <label className="text-xs text-muted-foreground mb-2 block">Customer Portal QR Code (print & display for customers)</label>
-                <div className="flex items-center gap-4">
-                  <div data-mycodes-qr className="p-3 rounded-lg bg-white inline-block">
-                    <QRCodeSVG value="https://washcodeadmin.lovable.app/my-codes" size={120} level="M" />
-                   </div>
-                   <div className="space-y-2">
-                     <p className="text-xs text-muted-foreground font-mono">https://washcodeadmin.lovable.app/my-codes</p>
-                    <p className="text-xs text-muted-foreground">Customers scan this to view their wash codes</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        const printWindow = window.open('', '_blank', 'width=500,height=600');
-                        if (!printWindow) return;
-                        const qrEl = document.querySelector('[data-mycodes-qr]')?.innerHTML || '';
-                        printWindow.document.write(`<!DOCTYPE html><html><head><title>Scan to View Your Wash Codes</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px;text-align:center}.title{font-size:24px;font-weight:bold;margin-bottom:8px}.subtitle{font-size:14px;color:#666;margin-bottom:32px}.qr-box{padding:24px;border:3px solid #000;border-radius:16px;display:inline-block;margin-bottom:24px}.qr-box svg{width:200px;height:200px}.url{font-size:12px;color:#999;margin-top:16px}@media print{body{padding:20px}}</style></head><body><div class="title">${businessName}</div><div class="subtitle">Scan to view your wash codes</div><div class="qr-box">${qrEl}</div><div class="url">https://washcodeadmin.lovable.app/my-codes</div></body></html>`);
-                        printWindow.document.close();
-                        printWindow.focus();
-                        printWindow.print();
-                      }}
-                    >
-                      <Printer className="w-4 h-4" />
-                      Print QR Poster
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <div className="sm:col-span-2">
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={async () => {
-                    const updates = [
-                    { key: 'business_name', value: businessName },
-                    { key: 'business_phone', value: businessPhone },
-                    { key: 'receipt_footer', value: receiptFooter },
-                    { key: 'expiry_days', value: String(expiryDays) },
-                    { key: 'multi_wash_days', value: String(multiWashDays) },
-                    { key: 'master_site_url', value: masterSiteUrl },
-                    { key: 'site_name', value: siteName },
-                    { key: 'packages_enabled', value: String(packagesEnabled) },
-                    { key: 'unlimited_packages_enabled', value: String(unlimitedPackagesEnabled) },
-                    { key: 'package_exterior_price', value: packageExteriorPrice },
-                    { key: 'package_interior_price', value: packageInteriorPrice },
-                    { key: 'pos_enabled', value: String(posEnabled) },
-                    { key: 'payfast_enabled', value: String(payfastEnabled) },
-                    { key: 'payfast_merchant_id', value: payfastMerchantId },
-                    { key: 'payfast_merchant_key', value: payfastMerchantKey },
-                    { key: 'payfast_passphrase', value: payfastPassphrase },
-                    { key: 'payfast_sandbox', value: String(payfastSandbox) }];
 
-                    const { error } = await supabase.from('business_settings').upsert(updates, { onConflict: 'key' });
-                    if (error) {
-                      toast.error('Failed to save settings');
-                      console.error(error);
-                      return;
-                    }
-                    toast.success('Receipt settings saved');
-                  }}>
-                  
-                    <Save className="w-4 h-4" />
-                    Save Settings
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/reports')}>
-                  
-                    <BarChart3 className="w-4 h-4" />
-                    View Reports
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/pricing')}>
-                  
-                    <DollarSign className="w-4 h-4" />
-                    Wash Pricing
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/users')}>
-                  
-                    <Users className="w-4 h-4" />
-                    Manage Users
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/packages')}>
-                  
-                    <Car className="w-4 h-4" />
-                    Wash Packages
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/pos-products')}>
-                  
-                    <Package className="w-4 h-4" />
-                    POS Products
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/sites')}>
-                  
-                    <MapPin className="w-4 h-4" />
-                    Sites
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate('/package-orders')}>
-                  
-                    <ClipboardList className="w-4 h-4" />
-                    Package Orders
-                  </Button>
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 text-destructive hover:text-destructive"
-                  onClick={signOut}>
-                  
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </Button>
+              <div className="space-y-4">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">02. Service Selection</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {WASH_OPTIONS.map((option) => (
+                    <WashTypeCard key={option.id} option={option} selected={selectedWash === option.id} onSelect={handleWashSelect} />
+                  ))}
                 </div>
               </div>
-            </div>
-          </section>
-        }
-        {/* Vehicle Type */}
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Select Vehicle Type</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {VEHICLE_TYPES.map((vt) => (
-              <button
-                key={vt.id}
-                onClick={() => handleVehicleSelect(vt.id)}
-                className={`rounded-lg border p-3 text-center text-sm font-medium transition-all ${
-                  selectedVehicle === vt.id
-                    ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                    : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground'
-                }`}
-              >
-                {vt.label}
-              </button>
-            ))}
+
+              <div className="space-y-4">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">03. Client Details</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-1">Phone Number (Optional)</label>
+                    <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="081 234 5678" className="h-14 bg-zinc-900 border-zinc-800 rounded-2xl font-black text-primary font-mono tracking-widest" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-1">Service Value (R)</label>
+                    <Input type="number" value={totalPrice} disabled className="h-14 bg-zinc-900/50 border-zinc-800 rounded-2xl font-black text-2xl text-emerald-500 font-mono italic" />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={handleGenerate} disabled={generating} className="w-full h-20 rounded-[1.5rem] bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 text-sm italic group">
+                {generating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform" />}
+                Generate Secure Access Code
+              </Button>
+            </section>
           </div>
 
-          {/* Wash Package Type */}
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Wash Package</h2>
-          <div className={`grid gap-3 ${unlimitedPackagesEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            <button
-              onClick={() => { setIsMultiWash(false); }}
-              className="rounded-lg border p-3 text-center transition-all border-primary bg-primary/10 text-primary ring-1 ring-primary/30"
-            >
-              <span className="text-sm font-medium block">Single Wash</span>
-              <span className="text-xs opacity-70">{expiryDays} day{expiryDays !== 1 ? 's' : ''} expiry</span>
-            </button>
-            {unlimitedPackagesEnabled && (
-              <button
-                onClick={() => navigate('/packages')}
-                className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center transition-all hover:bg-primary/10 hover:border-primary"
-              >
-                <Car className="w-4 h-4 mx-auto mb-1 text-primary" />
-                <span className="text-sm font-medium block text-primary">Unlimited</span>
-                <span className="text-xs text-muted-foreground">♾️ Plate-based</span>
-              </button>
-            )}
-          </div>
-
-
-
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Select Wash Type</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {WASH_OPTIONS.map((option) =>
-            <WashTypeCard key={option.id} option={option} selected={selectedWash === option.id} onSelect={handleWashSelect} />
-            )}
-          </div>
-
-          {/* Customer Details & Settings */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Customer Phone</label>
-              <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="e.g. 0812345678" className="font-mono bg-secondary border-border" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Base Price (R)</label>
-              <Input type="number" min={0} step={0.5} value={price} onChange={(e) => setPrice(Math.max(0, parseFloat(e.target.value) || 0))} className="font-mono bg-secondary border-border" disabled={!isAdmin} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Expiry</label>
-              <Input value={isMultiWash ? `${multiWashDays} days` : `${expiryDays} day${expiryDays !== 1 ? 's' : ''}`} disabled className="font-mono bg-secondary border-border opacity-60" />
-            </div>
-          </div>
-
-          {/* Extras */}
-          {extras.length > 0 &&
-          <div className="space-y-2">
-              <label className="text-xs text-muted-foreground block">Extras</label>
-              <div className="flex flex-wrap gap-3">
-                {extras.map((extra) =>
-              <label key={extra.id} className="flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 hover:bg-secondary transition-colors">
-                    <Checkbox
-                  checked={selectedExtras.has(extra.id)}
-                  onCheckedChange={() => toggleExtra(extra.id)} />
-                
-                    <span className="text-sm">{extra.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">R{extra.price}</span>
-                  </label>
-              )}
+          {/* Right Panel: Feed */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Live Code Stream</h2>
+              <div className="flex gap-1">
+                {(['all', 'active', 'used'] as FilterType[]).map((f) => (
+                  <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border transition-all ${filter === f ? 'bg-primary border-primary text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+                    {f}
+                  </button>
+                ))}
               </div>
-              {extrasTotal > 0 &&
-            <p className="text-xs text-muted-foreground font-mono">
-                  Total: R{price} + R{extrasTotal} extras = <span className="text-foreground font-semibold">R{totalPrice}</span>
-                </p>
-            }
             </div>
-          }
 
-
-          <Button onClick={handleGenerate} disabled={generating} className="w-full sm:w-auto gap-2">
-            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Generate Code — R{isMultiWash ? (totalPrice * washQuantity).toFixed(2) : totalPrice}
-          </Button>
-        </section>
-
-        {/* Codes List */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Generated Codes</h2>
-            <div className="flex items-center gap-1 text-xs">
-              <Filter className="w-3 h-3 text-muted-foreground" />
-              {(['all', 'active', 'used', 'expired'] as FilterType[]).map((f) =>
-              <button key={f} onClick={() => setFilter(f)} className={`px-2 py-1 rounded transition-colors ${filter === f ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
-                </button>
+            <div className="space-y-4 overflow-y-auto max-h-[800px] pr-2 custom-scrollbar">
+              {filteredCodes.length === 0 ? (
+                <div className="py-20 text-center opacity-20 italic uppercase text-[10px] font-black tracking-widest">No matching transactions</div>
+              ) : (
+                filteredCodes.map((code) => (
+                  <CodeDisplay key={code.id} code={code} onMarkUsed={handleMarkUsed} isAdmin={isAdmin} businessPhone={businessPhone} businessName={businessName} receiptFooter={receiptFooter} />
+                ))
               )}
             </div>
           </div>
-
-          {filteredCodes.length === 0 ?
-          <div className="text-center py-16 text-muted-foreground">
-              <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="font-mono text-sm">{codes.length === 0 ? 'No codes generated yet' : 'No codes match filter'}</p>
-            </div> :
-
-          <div className="space-y-3">
-              {filteredCodes.map((code) =>
-            <CodeDisplay key={code.id} code={code} onMarkUsed={handleMarkUsed} isAdmin={isAdmin} onExpiryUpdated={(id, newExpiry) => setCodes(prev => prev.map(c => c.id === id ? { ...c, expiresAt: newExpiry } : c))} businessPhone={businessPhone} businessName={businessName} receiptFooter={receiptFooter} />
-            )}
-            </div>
-          }
-        </section>
+        </div>
       </main>
-
       <Footer />
-    </div>);
-
+    </div>
+  );
 };
 
 export default Index;
