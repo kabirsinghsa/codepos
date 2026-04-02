@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Minus, Plus, ShoppingCart, Trash2, Printer, Receipt } from 'lucide-react';
+import { ArrowLeft, Loader2, Minus, Plus, ShoppingCart, Trash2, Printer, Receipt, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -23,7 +23,7 @@ interface BasketItem {
 
 const Pos = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, siteId: userSiteId } = useAuth();
   const [products, setProducts] = useState<PosProduct[]>([]);
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,7 @@ const Pos = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
   const [businessPhone, setBusinessPhone] = useState('');
+  const [siteName, setSiteName] = useState('');
   const [lastReceipt, setLastReceipt] = useState<{ items: BasketItem[]; total: number; date: Date; txId: string } | null>(null);
 
   useEffect(() => {
@@ -39,17 +40,25 @@ const Pos = () => {
         supabase.from('pos_products').select('*').eq('active', true).order('category').order('name'),
         supabase.from('business_settings').select('key, value'),
       ]);
+
       if (productsRes.data) setProducts(productsRes.data as any[]);
       if (settingsRes.data) {
         settingsRes.data.forEach((r: any) => {
-          if (r.key === 'business_name') setBusinessName(r.value);
-          if (r.key === 'business_phone') setBusinessPhone(r.value);
+          if (r.key === 'business_name') setBusinessName(row.value);
+          if (r.key === 'business_phone') setBusinessPhone(row.value);
         });
       }
+
+      // Fetch current site name for the logged in user
+      if (userSiteId) {
+        const { data: siteData } = await supabase.from('sites').select('name').eq('id', userSiteId).single();
+        if (siteData) setSiteName(siteData.name);
+      }
+
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [userSiteId]);
 
   const addToBasket = (product: PosProduct) => {
     setBasket(prev => {
@@ -80,10 +89,15 @@ const Pos = () => {
     if (basket.length === 0) return;
     setProcessing(true);
     try {
-      // Create transaction
+      // Create transaction with site_id
       const { data: tx, error: txError } = await supabase
         .from('pos_transactions')
-        .insert({ total: basketTotal, items_count: basketCount, created_by: user?.id } as any)
+        .insert({
+          total: basketTotal,
+          items_count: basketCount,
+          created_by: user?.id,
+          site_id: userSiteId // Ensure site_id is linked to the transaction
+        } as any)
         .select('id')
         .single();
 
@@ -139,6 +153,7 @@ const Pos = () => {
       </style></head><body>
       <div class="header">
         <h1>${businessName}</h1>
+        ${siteName ? `<p>Branch: ${siteName}</p>` : ''}
         ${businessPhone ? `<p>Tel: ${businessPhone}</p>` : ''}
         <p>${lastReceipt.date.toLocaleDateString()} ${lastReceipt.date.toLocaleTimeString()}</p>
         <p style="font-size:9px;">TX: ${lastReceipt.txId.slice(0, 8).toUpperCase()}</p>
@@ -186,10 +201,18 @@ const Pos = () => {
             <ShoppingCart className="w-5 h-5" />
           </div>
           <h1 className="text-lg font-bold text-foreground">Point of Sale</h1>
+
+          {siteName && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full ml-2 border border-primary/20">
+              <Store className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-widest">{siteName}</span>
+            </div>
+          )}
+
           <div className="ml-auto flex items-center gap-2">
             {lastReceipt && (
-              <Button variant="outline" size="sm" onClick={printReceipt} className="gap-2">
-                <Printer className="w-4 h-4" /> Reprint
+              <Button variant="outline" size="sm" onClick={printReceipt} className="gap-2 font-bold text-xs">
+                <Printer className="w-4 h-4" /> REPRINT
               </Button>
             )}
           </div>
@@ -203,20 +226,20 @@ const Pos = () => {
             placeholder="Search products..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="bg-secondary border-border"
+            className="bg-secondary border-border h-12 rounded-xl px-4"
           />
           {filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No products found. Add products in POS Products settings.</p>
+            <p className="text-center text-muted-foreground py-8 italic uppercase text-xs tracking-widest">No products found.</p>
           ) : (
             categories.filter(cat => filtered.some(p => p.category === cat)).map(cat => (
-              <div key={cat}>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{cat}</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div key={cat} className="space-y-3">
+                <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-1">{cat}</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {filtered.filter(p => p.category === cat).map(p => (
                     <button
                       key={p.id}
                       onClick={() => addToBasket(p)}
-                      className="rounded-lg border border-border bg-card hover:bg-secondary hover:border-primary/50 transition-all text-left active:scale-95 overflow-hidden flex flex-col"
+                      className="rounded-2xl border-2 border-border bg-card hover:bg-secondary hover:border-primary/50 transition-all text-left active:scale-95 overflow-hidden flex flex-col shadow-sm"
                     >
                       {p.image_url ? (
                         <div className="aspect-square overflow-hidden bg-muted">
@@ -227,9 +250,9 @@ const Pos = () => {
                           <ShoppingCart className="w-8 h-8 text-muted-foreground/30" />
                         </div>
                       )}
-                      <div className="p-2.5">
-                        <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
-                        <p className="text-lg font-bold font-mono text-primary mt-0.5">R{Number(p.price).toFixed(2)}</p>
+                      <div className="p-3">
+                        <p className="font-bold text-sm text-foreground truncate uppercase">{p.name}</p>
+                        <p className="text-lg font-black font-mono text-primary mt-1">R{Number(p.price).toFixed(2)}</p>
                       </div>
                     </button>
                   ))}
@@ -240,57 +263,61 @@ const Pos = () => {
         </div>
 
         {/* Basket sidebar */}
-        <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-border bg-card flex flex-col">
-          <div className="p-4 border-b border-border">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              <Receipt className="w-4 h-4" /> Basket
-              {basketCount > 0 && (
-                <span className="ml-auto text-sm bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">{basketCount}</span>
-              )}
+        <div className="lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-muted/20 flex flex-col backdrop-blur-sm">
+          <div className="p-6 border-b border-border flex items-center justify-between">
+            <h2 className="font-black text-foreground flex items-center gap-2 uppercase tracking-widest text-sm">
+              <Receipt className="w-4 h-4 text-primary" /> Basket
             </h2>
+            {basketCount > 0 && (
+              <span className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-full font-black shadow-lg">
+                {basketCount} ITEMS
+              </span>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {basket.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Tap products to add to basket</p>
+              <div className="h-full flex flex-col items-center justify-center opacity-30 gap-4">
+                <ShoppingCart className="w-12 h-12" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Your basket is empty</p>
+              </div>
             ) : (
               basket.map(item => (
-                <div key={item.product.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50">
+                <div key={item.product.id} className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-sm">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.product.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">R{Number(item.product.price).toFixed(2)} × {item.quantity}</p>
+                    <p className="text-xs font-bold text-foreground truncate uppercase tracking-tighter">{item.product.name}</p>
+                    <p className="text-[10px] font-black text-primary font-mono mt-0.5">R{Number(item.product.price).toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1 rounded hover:bg-secondary text-muted-foreground">
-                      <Minus className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 bg-muted rounded-xl p-1">
+                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1.5 rounded-lg hover:bg-background text-muted-foreground transition-colors">
+                      <Minus className="w-3 h-3" />
                     </button>
-                    <span className="text-sm font-mono w-6 text-center text-foreground">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1 rounded hover:bg-secondary text-muted-foreground">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => removeFromBasket(item.product.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive ml-1">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <span className="text-xs font-black font-mono w-6 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1.5 rounded-lg hover:bg-background text-muted-foreground transition-colors">
+                      <Plus className="w-3 h-3" />
                     </button>
                   </div>
-                  <p className="text-sm font-bold font-mono text-foreground w-20 text-right">R{(item.product.price * item.quantity).toFixed(2)}</p>
+                  <button onClick={() => removeFromBasket(item.product.id)} className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))
             )}
           </div>
 
-          <div className="p-4 border-t border-border space-y-3">
+          <div className="p-6 bg-card border-t border-border space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-foreground">Total</span>
-              <span className="text-2xl font-bold font-mono text-primary">R{basketTotal.toFixed(2)}</span>
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Order Total</span>
+              <span className="text-3xl font-black font-mono text-primary">R{basketTotal.toFixed(2)}</span>
             </div>
             <Button
               onClick={handleCheckout}
               disabled={basket.length === 0 || processing}
-              className="w-full gap-2 text-base py-6"
+              className="w-full gap-3 text-sm font-black py-7 rounded-2xl shadow-xl uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95"
               size="lg"
             >
               {processing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-              Checkout & Print Receipt
+              Finalize Sale
             </Button>
           </div>
         </div>
