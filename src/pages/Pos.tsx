@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,26 +36,30 @@ const Pos = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [productsRes, settingsRes] = await Promise.all([
-        supabase.from('pos_products').select('*').eq('active', true).order('category').order('name'),
-        supabase.from('business_settings').select('key, value'),
-      ]);
+      try {
+        const [productsRes, settingsRes] = await Promise.all([
+          supabase.from('pos_products').select('*').eq('active', true).order('category').order('name'),
+          supabase.from('business_settings').select('key, value'),
+        ]);
 
-      if (productsRes.data) setProducts(productsRes.data as any[]);
-      if (settingsRes.data) {
-        settingsRes.data.forEach((r: any) => {
-          if (r.key === 'business_name') setBusinessName(row.value);
-          if (r.key === 'business_phone') setBusinessPhone(row.value);
-        });
+        if (productsRes.data) setProducts(productsRes.data as any[]);
+        if (settingsRes.data) {
+          settingsRes.data.forEach((r: any) => {
+            if (r.key === 'business_name') setBusinessName(r.value);
+            if (r.key === 'business_phone') setBusinessPhone(r.value);
+          });
+        }
+
+        if (userSiteId) {
+          const { data: siteData } = await supabase.from('sites').select('name').eq('id', userSiteId).single();
+          if (siteData) setSiteName(siteData.name);
+        }
+      } catch (err) {
+        console.error("Error loading POS data:", err);
+        toast.error("Database connection error");
+      } finally {
+        setLoading(false);
       }
-
-      // Fetch current site name for the logged in user
-      if (userSiteId) {
-        const { data: siteData } = await supabase.from('sites').select('name').eq('id', userSiteId).single();
-        if (siteData) setSiteName(siteData.name);
-      }
-
-      setLoading(false);
     };
     fetchData();
   }, [userSiteId]);
@@ -89,21 +93,19 @@ const Pos = () => {
     if (basket.length === 0) return;
     setProcessing(true);
     try {
-      // Create transaction with site_id
       const { data: tx, error: txError } = await supabase
         .from('pos_transactions')
         .insert({
           total: basketTotal,
           items_count: basketCount,
           created_by: user?.id,
-          site_id: userSiteId // Ensure site_id is linked to the transaction
+          site_id: userSiteId
         } as any)
         .select('id')
         .single();
 
       if (txError || !tx) throw txError || new Error('Failed to create transaction');
 
-      // Insert items
       const items = basket.map(i => ({
         transaction_id: tx.id,
         product_name: i.product.name,
@@ -136,7 +138,6 @@ const Pos = () => {
         <td style="text-align:center;padding:2px 4px;">${i.quantity}</td>
         <td style="text-align:right;padding:2px 0;">R${(i.product.price * i.quantity).toFixed(2)}</td>
       </tr>
-      ${i.product.description ? `<tr><td colspan="3" style="font-size:10px;color:#666;padding:0 0 4px 8px;">${i.product.description}</td></tr>` : ''}
     `).join('');
 
     w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title>
@@ -149,7 +150,6 @@ const Pos = () => {
         .divider { border-top: 1px dashed #000; margin: 8px 0; }
         .total { font-size: 16px; font-weight: bold; text-align: right; }
         .footer { text-align: center; margin-top: 12px; font-size: 10px; color: #666; }
-        @media print { body { width: 100%; } }
       </style></head><body>
       <div class="header">
         <h1>${businessName}</h1>
@@ -168,9 +168,7 @@ const Pos = () => {
       </table>
       <div class="divider"></div>
       <div class="total">TOTAL: R${lastReceipt.total.toFixed(2)}</div>
-      <div class="footer">
-        <p>Thank you for your purchase!</p>
-      </div>
+      <div class="footer"><p>Thank you for your purchase!</p></div>
       <script>window.onload=function(){window.print();}</script>
     </body></html>`);
     w.document.close();
@@ -193,66 +191,68 @@ const Pos = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
             <ShoppingCart className="w-5 h-5" />
           </div>
-          <h1 className="text-lg font-bold text-foreground">Point of Sale</h1>
+          <h1 className="text-lg font-black uppercase tracking-tight italic">Point of Sale</h1>
 
           {siteName && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full ml-2 border border-primary/20">
-              <Store className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-black uppercase tracking-widest">{siteName}</span>
+            <div className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900 text-zinc-100 rounded-full ml-4 border border-zinc-800 shadow-lg">
+              <Store className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{siteName} terminal</span>
             </div>
           )}
 
           <div className="ml-auto flex items-center gap-2">
             {lastReceipt && (
-              <Button variant="outline" size="sm" onClick={printReceipt} className="gap-2 font-bold text-xs">
-                <Printer className="w-4 h-4" /> REPRINT
+              <Button variant="outline" size="sm" onClick={printReceipt} className="gap-2 font-black text-[10px] rounded-xl border-2">
+                <Printer className="w-4 h-4" /> REPRINT RECEIPT
               </Button>
             )}
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row max-w-6xl mx-auto w-full">
-        {/* Product grid */}
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
+        <div className="flex-1 p-6 space-y-6 overflow-y-auto">
           <Input
-            placeholder="Search products..."
+            placeholder="SEARCH CATALOG..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="bg-secondary border-border h-12 rounded-xl px-4"
+            className="bg-card border-2 border-border h-14 rounded-2xl px-6 font-black tracking-widest shadow-sm"
           />
+
           {filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 italic uppercase text-xs tracking-widest">No products found.</p>
+            <div className="text-center py-20 opacity-30 italic uppercase text-xs font-black tracking-widest">No matching items</div>
           ) : (
             categories.filter(cat => filtered.some(p => p.category === cat)).map(cat => (
-              <div key={cat} className="space-y-3">
-                <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-1">{cat}</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div key={cat} className="space-y-4">
+                <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] px-2 flex items-center gap-2">
+                  <div className="h-1 w-1 rounded-full bg-primary" /> {cat}
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filtered.filter(p => p.category === cat).map(p => (
                     <button
                       key={p.id}
                       onClick={() => addToBasket(p)}
-                      className="rounded-2xl border-2 border-border bg-card hover:bg-secondary hover:border-primary/50 transition-all text-left active:scale-95 overflow-hidden flex flex-col shadow-sm"
+                      className="group relative rounded-3xl border-2 border-border bg-card hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all text-left active:scale-95 overflow-hidden flex flex-col shadow-sm"
                     >
-                      {p.image_url ? (
-                        <div className="aspect-square overflow-hidden bg-muted">
-                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="aspect-square bg-muted/50 flex items-center justify-center">
-                          <ShoppingCart className="w-8 h-8 text-muted-foreground/30" />
-                        </div>
-                      )}
-                      <div className="p-3">
-                        <p className="font-bold text-sm text-foreground truncate uppercase">{p.name}</p>
-                        <p className="text-lg font-black font-mono text-primary mt-1">R{Number(p.price).toFixed(2)}</p>
+                      <div className="aspect-square overflow-hidden bg-muted">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-secondary/50">
+                            <ShoppingCart className="w-10 h-10 text-muted-foreground/20" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-1">
+                        <p className="font-black text-xs text-foreground truncate uppercase tracking-tight">{p.name}</p>
+                        <p className="text-xl font-black font-mono text-primary">R{Number(p.price).toFixed(2)}</p>
                       </div>
                     </button>
                   ))}
@@ -263,61 +263,60 @@ const Pos = () => {
         </div>
 
         {/* Basket sidebar */}
-        <div className="lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-muted/20 flex flex-col backdrop-blur-sm">
-          <div className="p-6 border-b border-border flex items-center justify-between">
-            <h2 className="font-black text-foreground flex items-center gap-2 uppercase tracking-widest text-sm">
-              <Receipt className="w-4 h-4 text-primary" /> Basket
+        <div className="lg:w-[400px] border-t lg:border-t-0 lg:border-l-2 border-border bg-muted/10 flex flex-col backdrop-blur-xl">
+          <div className="p-8 border-b-2 border-border flex items-center justify-between">
+            <h2 className="font-black text-foreground flex items-center gap-3 uppercase tracking-widest text-base italic">
+              <Receipt className="w-5 h-5 text-primary" /> Active Basket
             </h2>
             {basketCount > 0 && (
-              <span className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-full font-black shadow-lg">
-                {basketCount} ITEMS
+              <span className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded-full font-black shadow-lg">
+                {basketCount} UNITS
               </span>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {basket.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center opacity-30 gap-4">
-                <ShoppingCart className="w-12 h-12" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Your basket is empty</p>
+              <div className="h-full flex flex-col items-center justify-center opacity-20 gap-6">
+                <ShoppingCart className="w-16 h-12" />
+                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Cart is empty</p>
               </div>
             ) : (
               basket.map(item => (
-                <div key={item.product.id} className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-sm">
+                <div key={item.product.id} className="flex items-center gap-4 p-4 rounded-[1.5rem] bg-card border-2 border-border shadow-md">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground truncate uppercase tracking-tighter">{item.product.name}</p>
-                    <p className="text-[10px] font-black text-primary font-mono mt-0.5">R{Number(item.product.price).toFixed(2)}</p>
+                    <p className="text-xs font-black text-foreground truncate uppercase tracking-tighter">{item.product.name}</p>
+                    <p className="text-[10px] font-black text-primary font-mono mt-1">R{Number(item.product.price).toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-1.5 bg-muted rounded-xl p-1">
-                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1.5 rounded-lg hover:bg-background text-muted-foreground transition-colors">
-                      <Minus className="w-3 h-3" />
+                  <div className="flex flex-col items-center gap-1.5 bg-muted rounded-2xl p-1.5">
+                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1.5 rounded-xl hover:bg-background text-primary transition-all">
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-black font-mono w-6 text-center">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1.5 rounded-lg hover:bg-background text-muted-foreground transition-colors">
-                      <Plus className="w-3 h-3" />
+                    <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1.5 rounded-xl hover:bg-background text-muted-foreground transition-all">
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <button onClick={() => removeFromBasket(item.product.id)} className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors">
-                    <Trash2 className="w-4 h-4" />
+                  <button onClick={() => removeFromBasket(item.product.id)} className="p-2.5 rounded-2xl hover:bg-red-500/10 text-red-500 transition-colors">
+                    <Trash2 className="w-4.5 h-4.5" />
                   </button>
                 </div>
               ))
             )}
           </div>
 
-          <div className="p-6 bg-card border-t border-border space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Order Total</span>
-              <span className="text-3xl font-black font-mono text-primary">R{basketTotal.toFixed(2)}</span>
+          <div className="p-8 bg-card border-t-2 border-border space-y-6">
+            <div className="flex justify-between items-center px-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Order Total</span>
+              <p className="text-4xl font-black font-mono text-primary">R{basketTotal.toFixed(2)}</p>
             </div>
             <Button
               onClick={handleCheckout}
               disabled={basket.length === 0 || processing}
-              className="w-full gap-3 text-sm font-black py-7 rounded-2xl shadow-xl uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95"
+              className="w-full font-black py-8 rounded-[2rem] shadow-2xl uppercase tracking-[0.2em] bg-primary text-primary-foreground"
               size="lg"
             >
-              {processing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-              Finalize Sale
+              {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : "Finalize Sale"}
             </Button>
           </div>
         </div>
