@@ -32,6 +32,7 @@ interface PackageLogRecord {
 interface PosTransaction {
   id: string;
   total: number;
+  site_id?: string | null;
   created_at: string;
   site_id: string | null;
 }

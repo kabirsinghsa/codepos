@@ -96,7 +96,7 @@ const PosProducts = () => {
         updated_at: new Date().toISOString()
       }));
 
-      const { error } = await supabase.from('pos_inventory').upsert(upserts, { onConflict: 'product_id,site_id' });
+      const { error } = await (supabase as any).from('pos_inventory').upsert(upserts, { onConflict: 'product_id,site_id' });
       if (error) throw error;
       toast.success('Inventory updated');
       setStockDialogOpen(false);
