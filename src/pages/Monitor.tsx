@@ -74,31 +74,7 @@ const Monitor = () => {
     }
   };
 
-  // Auto-reset bays back to idle after 5 seconds of washing
-  useEffect(() => {
-    const washingBays = bays.filter(b => b.status === 'washing' && b.started_at);
-    if (washingBays.length === 0) return;
-
-    const timers = washingBays.map(bay => {
-      const elapsed = Date.now() - new Date(bay.started_at!).getTime();
-      const remaining = Math.max(5000 - elapsed, 0);
-
-      return setTimeout(async () => {
-        await supabase
-          .from('wash_bay_status')
-          .update({
-            status: 'idle',
-            current_wash_type: null,
-            current_code: null,
-            started_at: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', bay.id);
-      }, remaining);
-    });
-
-    return () => timers.forEach(t => clearTimeout(t));
-  }, [bays]);
+  // ESP32 handles resetting bays to idle after firing the relay
 
   useEffect(() => {
     fetchData();
