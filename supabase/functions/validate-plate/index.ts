@@ -64,13 +64,16 @@ Deno.serve(async (req) => {
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
+    // GENERATE UNIQUE HASH FOR THIS SPECIFIC WASH
+    const uniqueWashId = `${cleanPlate}-${Date.now()}`;
+
     // Open the correct gate strictly by ID
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
         status: 'washing',
         current_wash_type: relayWashType,
-        current_code: `PKG-${cleanPlate}`,
+        current_code: uniqueWashId,
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -98,7 +101,8 @@ Deno.serve(async (req) => {
         valid: true,
         wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
-        bay_triggered: targetBayId
+        bay_triggered: targetBayId,
+        wash_id: uniqueWashId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
