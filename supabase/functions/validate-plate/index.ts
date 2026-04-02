@@ -21,29 +21,24 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { plate, site_name } = body
+    const { plate, site_name, site_id } = body
 
-    // NO DEFAULTS: If site_id is missing, the request is invalid.
-    const rawId = body.site_id || body.id;
-
+    // 1. STRICT ID DETECTION
+    const rawId = site_id || body.id;
     if (!rawId) {
-      console.error("CRITICAL ERROR: No site_id provided in request body", body)
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Configuration Error: Site ID is missing. Check your URL.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error("ERROR: No site_id provided")
+      return new Response(JSON.stringify({ valid: false, error: 'Kiosk Error: Site ID missing' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const targetBayId = parseInt(rawId.toString())
-    console.log(`[STRICT ACTION] Bay: ${targetBayId} | Site: ${site_name} | Plate: ${plate}`)
-
     const cleanPlate = plate.toUpperCase().replace(/\s+/g, ' ').trim()
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Find active package
+    // 2. Find active package
     const { data: pkg, error } = await supabase
       .from('wash_packages')
       .select('*')
@@ -56,18 +51,17 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (error || !pkg) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'No active package found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ valid: false, error: 'No active package found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
 
-    // GENERATE UNIQUE HASH FOR THIS SPECIFIC WASH
-    const uniqueWashId = `${cleanPlate}-${Date.now()}`;
+    // 3. GENERATE UNIQUE WASH ID (Timestamped)
+    // This is the "Lock" that prevents the ESP32 from firing twice
+    const uniqueWashId = `WASH-${cleanPlate}-${Date.now()}`;
 
-    // Open the correct gate strictly by ID
+    // 4. TRIGGER THE SPECIFIC SITE
+    console.log(`[ACTION] Triggering Bay ${targetBayId} for ${site_name}`)
     const { error: updateError } = await supabase
       .from('wash_bay_status')
       .update({
@@ -79,21 +73,14 @@ Deno.serve(async (req) => {
       })
       .eq('id', targetBayId)
 
-    if (updateError) {
-      console.error('DB ERROR:', updateError)
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Failed to update bay status' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    if (updateError) throw updateError;
 
-    // Log the wash
+    // 5. Log the wash
     await supabase.from('package_wash_logs').insert({
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
       wash_type: pkg.wash_type,
       site_name: site_name || `Bay ${targetBayId}`,
-      site_id: (rawId.toString().length > 20) ? rawId : null,
     })
 
     return new Response(
@@ -101,15 +88,13 @@ Deno.serve(async (req) => {
         valid: true,
         wash_type: relayWashType,
         vehicle_reg: pkg.vehicle_reg,
-        bay_triggered: targetBayId,
+        site_triggered: targetBayId,
         wash_id: uniqueWashId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
-    return new Response(
-      JSON.stringify({ valid: false, error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.error('SERVER ERROR:', err)
+    return new Response(JSON.stringify({ valid: false, error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
