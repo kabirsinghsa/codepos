@@ -29,7 +29,6 @@ const Kiosk = () => {
   const [searchParams] = useSearchParams();
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
 
-  // STRICT URL DETECTION - FORCE ERROR IF ID IS MISSING
   const siteConfig = useMemo(() => {
     const rawId = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
     const rawName = searchParams.get('site') || searchParams.get('Site');
@@ -99,7 +98,7 @@ const Kiosk = () => {
       if (error || !data?.valid) {
         toast.error(data?.error || 'Invalid code');
       } else {
-        toast.success(`Wash started at ${siteConfig.name}`);
+        toast.success(`Wash started for ${siteConfig.name}`);
         stopScanner();
       }
     } catch (err) {
@@ -125,7 +124,7 @@ const Kiosk = () => {
       if (error || !data?.valid) {
         toast.error(data?.error || 'No active package found');
       } else {
-        toast.success(`Wash started at ${siteConfig.name}`);
+        toast.success(`Wash started for ${siteConfig.name}`);
         setPackageInfo({ vehicle_reg: data.vehicle_reg, days_remaining: data.days_remaining });
       }
     } catch (err) {
@@ -152,13 +151,14 @@ const Kiosk = () => {
     }
   }, [validateCode]);
 
+  // INCREASED TO 10 SECONDS TO GIVE ESP32 TIME TO POLL
   useEffect(() => {
     if (bayState.status === 'washing' && siteConfig) {
       const timer = setTimeout(async () => {
         await supabase.from('wash_bay_status').update({
           status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
         }).eq('id', siteConfig.id);
-      }, 3000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
   }, [bayState.status, siteConfig]);
@@ -188,7 +188,7 @@ const Kiosk = () => {
     };
     fetchStatus();
 
-    const channel = supabase.channel(`site-status-${siteConfig.id}`).on(
+    const channel = supabase.channel(`status-${siteConfig.id}`).on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteConfig.id}` },
       (payload) => {
@@ -210,10 +210,10 @@ const Kiosk = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
         <XCircle className="w-20 h-20 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold mb-2">KIOSK SETUP REQUIRED</h1>
+        <h1 className="text-2xl font-bold mb-2 uppercase italic">Kiosk Setup Required</h1>
         <p className="text-muted-foreground mb-6 max-w-sm">This tablet is missing its Site ID configuration in the URL.</p>
-        <div className="p-4 bg-muted rounded-lg font-mono text-xs text-left">
-          Use these links for your sites:<br/><br/>
+        <div className="p-6 bg-muted rounded-2xl font-mono text-xs text-left border-2 border-border shadow-inner">
+          <p className="font-black text-primary mb-2 tracking-widest uppercase">Required link parameters:</p>
           <strong>Huddle:</strong> /kiosk?site=Huddle&site_id=2<br/>
           <strong>Boksburg:</strong> /kiosk?site=Boksburg&site_id=3
         </div>
@@ -221,13 +221,13 @@ const Kiosk = () => {
     );
   }
 
-  const currentStatusConfig = statusConfig[bayState.status];
+  const currentConfig = statusConfig[bayState.status];
   const washLabel = bayState.current_wash_type
     ? bayState.current_wash_type.charAt(0).toUpperCase() + bayState.current_wash_type.slice(1) + ' Wash'
     : null;
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b ${currentStatusConfig.bg} flex flex-col items-center justify-center p-8 select-none`}>
+    <div className={`min-h-screen bg-gradient-to-b ${currentConfig.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
 
@@ -235,21 +235,21 @@ const Kiosk = () => {
           <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
             {siteConfig.name}
           </span>
-          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : siteConfig.id === 3 ? 'bg-purple-600' : 'bg-gray-600'}`}>
+          <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
             BAY {siteConfig.id}
           </span>
         </div>
 
         {bayState.status !== 'idle' && (
           <AnimatePresence mode="wait">
-            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${currentStatusConfig.pulse ? 'animate-pulse' : ''}`}>
-              {currentStatusConfig.icon}
+            <motion.div key={bayState.status} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.4 }} className={`text-primary mx-auto ${currentConfig.pulse ? 'animate-pulse' : ''}`}>
+              {currentConfig.icon}
             </motion.div>
           </AnimatePresence>
         )}
 
-        <motion.h2 key={currentStatusConfig.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight uppercase">
-          {currentStatusConfig.title}
+        <motion.h2 key={currentConfig.title} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight uppercase">
+          {currentConfig.title}
         </motion.h2>
 
         {bayState.status === 'idle' && (
@@ -275,18 +275,18 @@ const Kiosk = () => {
         )}
 
         {packageInfo && bayState.status === 'washing' && (
-          <div className="inline-block px-8 py-2 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-bold shadow-lg">
+          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-bold shadow-lg">
             {packageInfo.vehicle_reg} • {packageInfo.days_remaining} days left
           </div>
         )}
 
         {washLabel && bayState.status === 'washing' && !packageInfo && (
-          <div className="inline-block px-8 py-2 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-black shadow-lg">
+          <div className="inline-block px-8 py-3 rounded-full bg-primary/20 border-2 border-primary/40 text-primary text-xl font-black shadow-lg">
             {washLabel}
           </div>
         )}
 
-        <p className="text-xl text-muted-foreground font-medium">{currentStatusConfig.subtitle}</p>
+        <p className="text-xl text-muted-foreground font-medium">{currentConfig.subtitle}</p>
       </div>
       <Footer />
     </div>
