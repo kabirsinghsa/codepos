@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import Index from "./pages/Index";
 import Kiosk from "./pages/Kiosk";
-import Monitor from "./pages/Monitor";
+
 import Reports from "./pages/Reports";
 import UserManagement from "./pages/UserManagement";
 import WashPricing from "./pages/WashPricing";
@@ -38,7 +38,7 @@ const App = () => (
             <Route path="/buy-package" element={<BuyPackage />} />
             <Route path="/my-codes" element={<MyCodes />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/monitor" element={<ProtectedRoute><Monitor /></ProtectedRoute>} />
+            
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
             <Route path="/pricing" element={<AdminRoute><WashPricing /></AdminRoute>} />
