@@ -4,7 +4,7 @@ import { WashTypeCard } from '@/components/WashTypeCard';
 import { CodeDisplay } from '@/components/CodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, Monitor, QrCode, Save, Printer } from 'lucide-react';
+import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, QrCode, Save, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -283,9 +283,6 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <button onClick={() => navigate('/pos')} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-orange-500 hover:scale-105 transition-all shadow-lg" title="Shop POS">
                 <ShoppingCart className="w-5 h-5" />
-              </button>
-              <button onClick={() => navigate('/monitor')} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-blue-500 hover:scale-105 transition-all shadow-lg" title="Live Monitor">
-                <Monitor className="w-5 h-5" />
               </button>
               <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-2xl border transition-all shadow-lg ${showSettings ? 'bg-primary text-white border-primary' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}>
                 <Settings className="w-5 h-5" />
