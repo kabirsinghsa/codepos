@@ -1,24 +1,92 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Car, Loader2, Camera, CameraOff, CameraIcon } from 'lucide-react';
+import { Car, Loader2, Camera, CameraOff, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import Tesseract from 'tesseract.js';
 
 interface PlateScannerProps {
   onPlateDetected: (plate: string) => void;
   disabled?: boolean;
 }
 
+// SA plate patterns: 2-3 letters, space, 3 digits, space, 2 letters (e.g. CA 123-456, ABC 123 GP)
+const PLATE_PATTERNS = [
+  /[A-Z]{2,3}\s?\d{3}\s?[A-Z]{2}/,      // ABC 123 GP
+  /[A-Z]{2}\s?\d{3}[-\s]?\d{3}/,          // CA 123-456
+  /[A-Z]{3}\s?\d{3}\s?[A-Z]{2,3}/,        // ABC 123 GP
+  /[A-Z]{2,3}\d{3}[A-Z]{2,3}/,            // ABC123GP (no spaces)
+  /[A-Z]{1,3}\s?\d{2,5}\s?[A-Z]{0,3}/,    // Broader catch
+];
+
+function extractPlate(text: string): string | null {
+  // Clean up OCR text
+  const cleaned = text
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  for (const pattern of PLATE_PATTERNS) {
+    const match = cleaned.match(pattern);
+    if (match && match[0].replace(/\s/g, '').length >= 5) {
+      return match[0].replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  // Fallback: look for any sequence with letters and digits that looks plate-like
+  const words = cleaned.split(/\s+/);
+  const combined = words.join('');
+  if (/[A-Z]{2,3}\d{3}[A-Z]{0,3}/.test(combined)) {
+    const m = combined.match(/[A-Z]{2,3}\d{3}[A-Z]{0,3}/);
+    if (m) return m[0];
+  }
+
+  return null;
+}
+
 const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
   const [plate, setPlate] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const workerRef = useRef<Tesseract.Worker | null>(null);
+  const processingRef = useRef(false);
+
+  // Initialize Tesseract worker on mount
+  useEffect(() => {
+    let cancelled = false;
+    const initWorker = async () => {
+      try {
+        const worker = await Tesseract.createWorker('eng', 1, {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              setScanStatus(`Scanning... ${Math.round((m.progress || 0) * 100)}%`);
+            }
+          },
+        });
+        await worker.setParameters({
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -',
+          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        });
+        if (!cancelled) {
+          workerRef.current = worker;
+        }
+      } catch (err) {
+        console.error('Tesseract init error:', err);
+      }
+    };
+    initWorker();
+    return () => {
+      cancelled = true;
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
@@ -34,6 +102,8 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
     }
     setCameraActive(false);
     setScanning(false);
+    setScanStatus('');
+    processingRef.current = false;
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -41,7 +111,6 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
@@ -57,72 +126,77 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
       }, 100);
     } catch (err) {
       console.error('Camera access error:', err);
-      toast.error('Live camera failed. Try the "Snap Photo" button.');
+      toast.error('Could not access camera. Check permissions.');
     }
   }, []);
 
-  const processImage = async (blob: Blob) => {
-    setScanning(true);
-    try {
-      const formData = new FormData();
-      formData.append('upload', blob, 'plate.jpg');
-
-      const { data, error } = await supabase.functions.invoke('recognize-plate', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      if (data.plate && data.score > 0.5) {
-        setPlate(data.plate);
-        toast.success(`Plate detected: ${data.plate}`);
-        stopCamera();
-        onPlateDetected(data.plate);
-      } else {
-        toast.error('Could not read plate clearly. Please try again or enter manually.');
-      }
-    } catch (err) {
-      console.error('Plate recognition error:', err);
-      toast.error('Recognition failed. Please try manual entry.');
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const captureFrame = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || scanning || disabled || !cameraActive) return;
+  const processFrame = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || processingRef.current || disabled || !cameraActive || !workerRef.current) return;
 
     const video = videoRef.current;
     if (video.readyState !== 4 || video.videoWidth === 0) return;
 
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
+    processingRef.current = true;
+    setScanning(true);
 
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.8)
-    );
-    if (blob) processImage(blob);
-  }, [scanning, disabled, onPlateDetected, stopCamera, cameraActive]);
+    try {
+      const canvas = canvasRef.current;
+      // Crop to center-bottom area where plates typically are
+      const cropH = Math.floor(video.videoHeight * 0.35);
+      const cropY = Math.floor(video.videoHeight * 0.5);
+      canvas.width = video.videoWidth;
+      canvas.height = cropH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processImage(file);
+      // Draw cropped region
+      ctx.drawImage(video, 0, cropY, video.videoWidth, cropH, 0, 0, video.videoWidth, cropH);
+
+      // Increase contrast for better OCR
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+        const val = avg > 128 ? 255 : 0; // Threshold to black/white
+        data[i] = val;
+        data[i + 1] = val;
+        data[i + 2] = val;
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png', 1)
+      );
+      if (!blob || !workerRef.current) return;
+
+      const { data: result } = await workerRef.current.recognize(blob);
+      const detectedPlate = extractPlate(result.text);
+
+      if (detectedPlate && detectedPlate.length >= 5) {
+        setPlate(detectedPlate);
+        toast.success(`Plate detected: ${detectedPlate}`);
+        stopCamera();
+        onPlateDetected(detectedPlate);
+      } else {
+        setScanStatus('Scanning... Position plate in view');
+      }
+    } catch (err) {
+      console.error('OCR error:', err);
+    } finally {
+      processingRef.current = false;
+      setScanning(false);
     }
-  };
+  }, [disabled, cameraActive, onPlateDetected, stopCamera]);
 
+  // Auto-scan every 2 seconds when camera is active
   useEffect(() => {
     if (cameraActive && !disabled) {
-      intervalRef.current = setInterval(captureFrame, 3000);
+      intervalRef.current = setInterval(processFrame, 2000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
     }
-  }, [cameraActive, disabled, captureFrame]);
+  }, [cameraActive, disabled, processFrame]);
 
   useEffect(() => {
     return () => stopCamera();
@@ -138,16 +212,6 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-sm mx-auto">
-      {/* Hidden file input for native camera trigger */}
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFileUpload}
-        className="hidden"
-        ref={fileInputRef}
-      />
-
       {cameraActive ? (
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-4 border-primary/30 bg-black shadow-2xl">
           <video
@@ -157,9 +221,13 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
             muted
             autoPlay
           />
+          {/* Plate guide overlay */}
+          <div className="absolute inset-0 flex items-end justify-center pb-[15%] pointer-events-none">
+            <div className="w-[70%] h-[25%] border-2 border-primary/60 rounded-lg bg-primary/5" />
+          </div>
           {scanning && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-white" />
+            <div className="absolute top-2 left-2 px-3 py-1 rounded-full bg-black/60 text-white text-xs font-bold flex items-center gap-1">
+              <Search className="w-3 h-3 animate-pulse" /> {scanStatus || 'Reading...'}
             </div>
           )}
           <button
@@ -170,26 +238,14 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 w-full">
-          <Button
-            onClick={startCamera}
-            disabled={disabled}
-            variant="outline"
-            className="h-20 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 hover:bg-secondary transition-all"
-          >
-            <Camera className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Live Scan</span>
-          </Button>
-
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="h-20 flex flex-col items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            <CameraIcon className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Snap Photo</span>
-          </Button>
-        </div>
+        <Button
+          onClick={startCamera}
+          disabled={disabled}
+          className="w-full h-24 flex flex-col items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
+        >
+          <Camera className="w-8 h-8" />
+          <span className="text-xs font-bold uppercase tracking-wider">Open Camera to Scan Plate</span>
+        </Button>
       )}
 
       <canvas ref={canvasRef} className="hidden" />
