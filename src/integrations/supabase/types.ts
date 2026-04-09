@@ -139,6 +139,45 @@ export type Database = {
           },
         ]
       }
+      pos_inventory: {
+        Row: {
+          id: string
+          product_id: string | null
+          quantity: number
+          site_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          product_id?: string | null
+          quantity?: number
+          site_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          product_id?: string | null
+          quantity?: number
+          site_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pos_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_inventory_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_products: {
         Row: {
           active: boolean
@@ -219,6 +258,7 @@ export type Database = {
           created_by: string | null
           id: string
           items_count: number
+          site_id: string | null
           total: number
         }
         Insert: {
@@ -226,6 +266,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           items_count?: number
+          site_id?: string | null
           total?: number
         }
         Update: {
@@ -233,9 +274,18 @@ export type Database = {
           created_by?: string | null
           id?: string
           items_count?: number
+          site_id?: string | null
           total?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pos_transactions_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
