@@ -4,7 +4,7 @@ import { WashTypeCard } from '@/components/WashTypeCard';
 import { CodeDisplay } from '@/components/CodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, Monitor, QrCode, Save, Printer } from 'lucide-react';
+import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, QrCode, Save, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
