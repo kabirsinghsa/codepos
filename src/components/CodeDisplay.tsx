@@ -14,8 +14,8 @@ const statusStyles = {
 };
 
 const VEHICLE_LABELS: Record<string, string> = {
-  small_medium: 'Small/Medium Cars',
-  bakkie_suv: 'Bakkies/SUV',
+  small_medium: 'Small/Medium',
+  bakkie_suv: 'Bakkie/SUV',
   quantum: 'Quantum',
 };
 
@@ -74,13 +74,11 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
         <p>Wash Code Receipt</p>
         <p style="margin-top:4px;">Tel: ${businessPhone}</p>
       </div>
-      
       <div class="qr-box">
         ${qrSvg}
         <div class="wash-type">${wash.name}</div>
         <div class="code-text">${code.code}</div>
       </div>
-      
       <div class="details">
         <div class="row"><span class="label">Vehicle:</span><span>${vehicleLabel}</span></div>
         <div class="row"><span class="label">Wash:</span><span>${wash.name} — R${basePrice > 0 ? basePrice.toFixed(2) : '0.00'}</span></div>
@@ -88,19 +86,14 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
         <div class="row"><span class="label">Expires:</span><span>${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</span></div>
         ${code.totalWashes > 1 ? `<div class="row"><span class="label">Washes:</span><span>${code.washesUsed}/${code.totalWashes} used</span></div>` : ''}
       </div>
-
       ${extras.length > 0 ? `
         <div class="extras-header">Extras</div>
-        <div class="details">
-          ${extrasHtml}
-        </div>
+        <div class="details">${extrasHtml}</div>
       ` : ''}
-      
       <div class="price-row">
         <span>TOTAL:</span>
         <span>R${code.price.toFixed(2)}</span>
       </div>
-      
       <div class="footer">
         <p>${receiptFooter}</p>
         <p>Valid until ${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</p>
@@ -124,7 +117,6 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
   const [saving, setSaving] = useState(false);
 
   const handleEditExpiry = () => {
-    // Pre-fill with current expiry in datetime-local format
     const d = new Date(code.expiresAt);
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     setNewExpiry(local);
@@ -150,43 +142,35 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
   };
 
   return (
-    <div className={`rounded-lg border p-4 bg-card ${status === 'active' ? 'glow-primary' : ''}`}>
+    <div className={`premium-card p-4 ${status === 'active' ? '!border-primary/20' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs px-2 py-0.5 rounded-full border ${statusStyles[status]}`}>
-            {status.toUpperCase()}
+          <span className={`text-[9px] px-2 py-0.5 rounded-md border font-medium uppercase tracking-wider ${statusStyles[status]}`}>
+            {status}
           </span>
           <span className="text-xs text-muted-foreground">{wash.name}</span>
-          <span className="text-xs text-muted-foreground">• {vehicleLabel}</span>
+          <span className="text-[10px] text-muted-foreground/70">• {vehicleLabel}</span>
           {code.totalWashes > 1 && (
             <span className="text-xs font-mono font-semibold text-primary">
-              {code.washesUsed}/{code.totalWashes} used
+              {code.washesUsed}/{code.totalWashes}
             </span>
           )}
-          <span className="text-xs font-mono font-bold text-accent">R{code.price.toFixed(2)}</span>
+          <span className="text-xs font-mono font-bold text-primary">R{code.price.toFixed(2)}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {isAdmin && (
-            <button
-              onClick={handleEditExpiry}
-              className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-              title="Change expiry date"
-            >
-              <CalendarClock className="w-4 h-4" />
+            <button onClick={handleEditExpiry} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Change expiry">
+              <CalendarClock className="w-3.5 h-3.5" />
             </button>
           )}
-          <button
-            onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter)}
-            className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-            title="Print receipt"
-          >
-            <Printer className="w-4 h-4" />
+          <button onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Print">
+            <Printer className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => {
               const appUrl = `${window.location.origin}/my-codes`;
-              const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
-              const message = `Your ${wash.name} wash code is ready!\n\nCode: ${code.code}\nPrice: R${code.price.toFixed(2)}\n\nView your code & QR here: ${appUrl}\nEnter your phone number to see your active codes.`;
+              const w = WASH_OPTIONS.find(w => w.id === code.washType)!;
+              const message = `Your ${w.name} wash code is ready!\n\nCode: ${code.code}\nPrice: R${code.price.toFixed(2)}\n\nView: ${appUrl}`;
               if (navigator.share) {
                 navigator.share({ title: 'Wash Code', text: message, url: appUrl });
               } else {
@@ -194,67 +178,49 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
                 window.open(waUrl, '_blank');
               }
             }}
-            className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-            title="Send to customer"
+            className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+            title="Share"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5" />
           </button>
           {status === 'active' && onMarkUsed && (
-            <button
-              onClick={() => onMarkUsed(code.id)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <button onClick={() => onMarkUsed(code.id)} className="text-[9px] font-medium text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-secondary uppercase tracking-wider">
               Mark Used
             </button>
           )}
         </div>
       </div>
 
-      {/* Inline expiry editor for admin */}
       {editingExpiry && (
-        <div className="flex items-center gap-2 mb-3 p-2 rounded-md bg-secondary/50 border border-border">
-          <Input
-            type="datetime-local"
-            value={newExpiry}
-            onChange={(e) => setNewExpiry(e.target.value)}
-            className="text-xs font-mono bg-background border-border h-8 w-auto"
-          />
-          <button
-            onClick={handleSaveExpiry}
-            disabled={saving}
-            className="p-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            title="Save"
-          >
+        <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-secondary border border-border">
+          <Input type="datetime-local" value={newExpiry} onChange={(e) => setNewExpiry(e.target.value)} className="text-xs font-mono bg-background border-border h-8 w-auto rounded-lg" />
+          <button onClick={handleSaveExpiry} disabled={saving} className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" title="Save">
             <Check className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => setEditingExpiry(false)}
-            className="p-1.5 rounded-md hover:bg-secondary transition-colors text-muted-foreground"
-            title="Cancel"
-          >
+          <button onClick={() => setEditingExpiry(false)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground" title="Cancel">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
       <div className="flex items-center gap-4">
-        <div data-qr-id={code.id} className={`p-2 rounded-lg bg-white ${status !== 'active' ? 'opacity-40' : ''}`}>
-          <QRCodeSVG value={code.code} size={80} level="M" />
+        <div data-qr-id={code.id} className={`p-2 rounded-lg bg-white ${status !== 'active' ? 'opacity-30' : ''}`}>
+          <QRCodeSVG value={code.code} size={72} level="M" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <span className="font-mono text-sm text-muted-foreground">{code.code}</span>
           {extras.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {extras.map((e, i) => (
-                <span key={i} className="text-xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground border border-border">
                   {e.name} R{e.price}
                 </span>
               ))}
             </div>
           )}
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground font-mono">
-            <span>Created: {format(new Date(code.createdAt), 'dd/MM/yy HH:mm')}</span>
-            <span>Expires: {format(new Date(code.expiresAt), 'dd/MM/yy HH:mm')}</span>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/60 font-mono">
+            <span>{format(new Date(code.createdAt), 'dd/MM/yy HH:mm')}</span>
+            <span>→ {format(new Date(code.expiresAt), 'dd/MM/yy HH:mm')}</span>
           </div>
         </div>
       </div>
