@@ -304,117 +304,110 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-10">
         {showSettings && (
-          <motion.section initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-2xl space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-              <Button variant="outline" onClick={() => navigate('/reports')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><BarChart3 className="w-5 h-5" /> Business Reports</Button>
-              <Button variant="outline" onClick={() => navigate('/pricing')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><DollarSign className="w-5 h-5" /> Wash Pricing</Button>
-              <Button variant="outline" onClick={() => navigate('/users')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Users className="w-5 h-5" /> User Access</Button>
-              <Button variant="outline" onClick={() => navigate('/packages')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Car className="w-5 h-5" /> Manage Packages</Button>
-              <Button variant="outline" onClick={() => navigate('/pos-products')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><Package className="w-5 h-5" /> Shop Catalog</Button>
-              <Button variant="outline" onClick={() => navigate('/sites')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><MapPin className="w-5 h-5" /> Branch Sites</Button>
-              <Button variant="outline" onClick={() => navigate('/package-orders')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2"><ClipboardList className="w-5 h-5" /> Online Orders</Button>
-              <Button variant="outline" onClick={() => navigate('/install')} className="h-20 flex flex-col gap-1 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 border-primary text-primary hover:bg-primary/5"><QrCode className="w-5 h-5" /> System Deployment</Button>
+          <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 rounded-2xl space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Button variant="outline" onClick={() => navigate('/reports')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><BarChart3 className="w-4 h-4 text-primary" /> Reports</Button>
+              <Button variant="outline" onClick={() => navigate('/pricing')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><DollarSign className="w-4 h-4 text-primary" /> Pricing</Button>
+              <Button variant="outline" onClick={() => navigate('/users')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Users className="w-4 h-4 text-primary" /> Users</Button>
+              <Button variant="outline" onClick={() => navigate('/packages')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Car className="w-4 h-4 text-primary" /> Packages</Button>
+              <Button variant="outline" onClick={() => navigate('/pos-products')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Package className="w-4 h-4 text-primary" /> Catalog</Button>
+              <Button variant="outline" onClick={() => navigate('/sites')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><MapPin className="w-4 h-4 text-primary" /> Sites</Button>
+              <Button variant="outline" onClick={() => navigate('/package-orders')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><ClipboardList className="w-4 h-4 text-primary" /> Orders</Button>
+              <Button variant="outline" onClick={() => navigate('/install')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0 !border-primary/30"><QrCode className="w-4 h-4 text-primary" /> Deploy</Button>
             </div>
 
-            <div className="border-t border-border pt-8 space-y-6">
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-2">
-                <Printer className="w-4 h-4" /> Printer Receipt Customization
+            <div className="border-t border-border/50 pt-6 space-y-5">
+              <h3 className="section-label flex items-center gap-2 text-primary">
+                <Printer className="w-3.5 h-3.5" /> Receipt Settings
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Wash Code Receipt */}
-                <div className="space-y-4 p-6 bg-zinc-900/50 rounded-3xl border border-border shadow-inner">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground underline underline-offset-4 decoration-primary">Wash Code Receipt</p>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Footer</label>
-                      <Input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3 p-5 premium-card">
+                  <p className="section-label text-primary">Wash Code Receipt</p>
+                  <div>
+                    <label className="text-[9px] font-medium text-muted-foreground uppercase ml-1">Footer Text</label>
+                    <Input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} className="bg-secondary border-border rounded-lg text-xs mt-1" />
                   </div>
                 </div>
-
-                {/* POS Receipt */}
-                <div className="space-y-4 p-6 bg-zinc-900/50 rounded-3xl border border-border shadow-inner">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground underline underline-offset-4 decoration-orange-500">POS Shop Receipt</p>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Header</label>
-                      <Input value={posReceiptHeader} onChange={(e) => setPosReceiptHeader(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-zinc-500 uppercase ml-1">Receipt Footer</label>
-                      <Input value={posReceiptFooter} onChange={(e) => setPosReceiptFooter(e.target.value)} className="bg-zinc-900 border-zinc-800 rounded-xl text-xs" />
-                    </div>
+                <div className="space-y-3 p-5 premium-card">
+                  <p className="section-label text-primary">POS Receipt</p>
+                  <div>
+                    <label className="text-[9px] font-medium text-muted-foreground uppercase ml-1">Header</label>
+                    <Input value={posReceiptHeader} onChange={(e) => setPosReceiptHeader(e.target.value)} className="bg-secondary border-border rounded-lg text-xs mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-medium text-muted-foreground uppercase ml-1">Footer</label>
+                    <Input value={posReceiptFooter} onChange={(e) => setPosReceiptFooter(e.target.value)} className="bg-secondary border-border rounded-lg text-xs mt-1" />
                   </div>
                 </div>
               </div>
-              <Button onClick={handleSaveSettings} className="w-full rounded-2xl gap-2 font-black uppercase text-xs tracking-widest py-6 shadow-xl shadow-primary/10">
-                <Save className="w-4 h-4" /> Save Receipt Configurations
+              <Button onClick={handleSaveSettings} className="w-full rounded-xl gap-2 font-semibold uppercase text-xs tracking-wider py-5 gradient-primary border-0">
+                <Save className="w-4 h-4" /> Save Settings
               </Button>
             </div>
           </motion.section>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Panel: Configuration */}
-          <div className="lg:col-span-7 space-y-8">
-            <section className="bg-card border-2 border-border p-8 rounded-[2.5rem] shadow-xl space-y-8">
-              <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">01. Vehicle Category</h2>
-                <div className="grid grid-cols-3 gap-3">
+          <div className="lg:col-span-7 space-y-6">
+            <section className="premium-card p-6 space-y-6">
+              <div className="space-y-3">
+                <h2 className="section-label pl-1">01 — Vehicle Category</h2>
+                <div className="grid grid-cols-3 gap-2">
                   {VEHICLE_TYPES.map((vt) => (
-                    <button key={vt.id} onClick={() => handleVehicleSelect(vt.id)} className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${selectedVehicle === vt.id ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:bg-zinc-800'}`}>
+                    <button key={vt.id} onClick={() => handleVehicleSelect(vt.id)} className={`py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider transition-all border ${selectedVehicle === vt.id ? 'gradient-primary border-primary/50 text-white shadow-md' : 'bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-border'}`}>
                       {vt.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">02. Service Selection</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-3">
+                <h2 className="section-label pl-1">02 — Service Selection</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {WASH_OPTIONS.map((option) => (
                     <WashTypeCard key={option.id} option={option} selected={selectedWash === option.id} onSelect={handleWashSelect} />
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground pl-1">03. Client Details</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-1">Phone Number (Optional)</label>
-                    <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="081 234 5678" className="h-14 bg-zinc-900 border-zinc-800 rounded-2xl font-black text-primary font-mono tracking-widest" />
+              <div className="space-y-3">
+                <h2 className="section-label pl-1">03 — Client Details</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-medium uppercase text-muted-foreground ml-1">Phone (Optional)</label>
+                    <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="081 234 5678" className="h-12 bg-secondary border-border rounded-xl font-semibold text-primary font-mono tracking-wider" />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-1">Service Value (R)</label>
-                    <Input type="number" value={totalPrice} disabled className="h-14 bg-zinc-900/50 border-zinc-800 rounded-2xl font-black text-2xl text-emerald-500 font-mono italic" />
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-medium uppercase text-muted-foreground ml-1">Value (R)</label>
+                    <Input type="number" value={totalPrice} disabled className="h-12 bg-secondary/50 border-border rounded-xl font-bold text-xl text-success font-mono" />
                   </div>
                 </div>
               </div>
 
-              <Button onClick={handleGenerate} disabled={generating} className="w-full h-20 rounded-[1.5rem] bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 text-sm italic group">
-                {generating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform" />}
-                Generate Secure Access Code
+              <Button onClick={handleGenerate} disabled={generating} className="w-full h-16 rounded-xl gradient-primary text-white font-semibold uppercase tracking-wider shadow-lg border-0 group">
+                {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />}
+                Generate Access Code
               </Button>
             </section>
           </div>
 
           {/* Right Panel: Feed */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Live Code Stream</h2>
+          <div className="lg:col-span-5 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="section-label">Live Code Feed</h2>
               <div className="flex gap-1">
                 {(['all', 'active', 'used'] as FilterType[]).map((f) => (
-                  <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border transition-all ${filter === f ? 'bg-primary border-primary text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+                  <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border transition-all ${filter === f ? 'gradient-primary border-primary/50 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>
                     {f}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-4 overflow-y-auto max-h-[800px] pr-2 custom-scrollbar text-orange-500">
+            <div className="space-y-3 overflow-y-auto max-h-[800px] pr-1">
               {filteredCodes.length === 0 ? (
-                <div className="py-20 text-center opacity-20 italic uppercase text-[10px] font-black tracking-widest">No matching transactions</div>
+                <div className="py-20 text-center text-muted-foreground/40 uppercase text-[10px] font-medium tracking-widest">No matching transactions</div>
               ) : (
                 filteredCodes.map((code) => (
                   <CodeDisplay key={code.id} code={code} onMarkUsed={handleMarkUsed} isAdmin={isAdmin} businessPhone={businessPhone} businessName={businessName} receiptFooter={receiptFooter} />
