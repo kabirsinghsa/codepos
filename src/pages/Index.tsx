@@ -256,40 +256,47 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary glow-primary">
-              <Droplets className="w-6 h-6" />
+      <header className="page-header">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl gradient-primary text-white shadow-lg">
+                <Droplets className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold uppercase tracking-tight">{businessName}</h1>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Command Center</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-black uppercase tracking-tighter italic">{businessName}</h1>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Enterprise Command Center</p>
+
+            <div className="flex items-center gap-3">
+              <button onClick={() => navigate('/pos')} className="p-2.5 rounded-xl bg-secondary border border-border text-primary hover:bg-primary/10 transition-all" title="Shop POS">
+                <ShoppingCart className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowSettings(!showSettings)} className={`p-2.5 rounded-xl border transition-all ${showSettings ? 'gradient-primary text-white border-primary/50' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>
+                <Settings className="w-4 h-4" />
+              </button>
+              <button onClick={signOut} className="p-2.5 rounded-xl bg-secondary border border-border text-destructive hover:bg-destructive/10 transition-all">
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="hidden md:flex gap-8">
-              <div className="text-center">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active Codes</p>
-                <p className="text-2xl font-black font-mono text-primary leading-none">{activeCount}</p>
+          {/* Stat counters — visible on all screens */}
+          <div className="flex gap-3 mt-3">
+            <div className="flex-1 stat-card flex items-center justify-between">
+              <div>
+                <p className="section-label">Active Codes</p>
+                <p className="text-2xl font-bold font-mono text-primary leading-none mt-1">{activeCount}</p>
               </div>
-              <div className="text-center border-l border-border pl-8">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active Packages</p>
-                <p className="text-2xl font-black font-mono text-orange-500 leading-none">{activePackagesCount}</p>
-              </div>
+              <div className="p-2 rounded-lg bg-primary/10"><QrCode className="w-4 h-4 text-primary" /></div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/pos')} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-orange-500 hover:scale-105 transition-all shadow-lg" title="Shop POS">
-                <ShoppingCart className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-2xl border transition-all shadow-lg ${showSettings ? 'bg-primary text-white border-primary' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}>
-                <Settings className="w-5 h-5" />
-              </button>
-              <button onClick={signOut} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-red-500 hover:bg-red-500/10 transition-all shadow-lg">
-                <LogOut className="w-5 h-5" />
-              </button>
+            <div className="flex-1 stat-card flex items-center justify-between">
+              <div>
+                <p className="section-label">Packages</p>
+                <p className="text-2xl font-bold font-mono text-primary leading-none mt-1">{activePackagesCount}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10"><Car className="w-4 h-4 text-primary" /></div>
             </div>
           </div>
         </div>
