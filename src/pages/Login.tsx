@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, Droplets } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -60,69 +59,47 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <Droplets className="w-10 h-10 text-primary" />
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
+        <div className="text-center mb-8">
+          <div className="inline-flex p-3.5 rounded-2xl gradient-primary text-white shadow-lg mb-4">
+            <Droplets className="w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl">CARWASH CODE GENERATOR</CardTitle>
-          <CardDescription>{isSignUp ? 'Create an account' : 'Sign in to your account'}</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName">Display Name</Label>
-                <Input
-                  id="displayName"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Your name"
-                  required={isSignUp}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                required
-              />
+          <h1 className="text-xl font-bold uppercase tracking-tight">Carwash System</h1>
+          <p className="text-sm text-muted-foreground mt-1">{isSignUp ? 'Create your account' : 'Sign in to continue'}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="premium-card p-6 space-y-5">
+          {isSignUp && (
+            <div className="space-y-1.5">
+              <Label htmlFor="displayName" className="text-xs font-medium text-muted-foreground uppercase">Display Name</Label>
+              <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" required={isSignUp} className="h-11 bg-secondary border-border rounded-xl" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isSignUp ? 'Sign Up' : 'Sign In'}
-            </Button>
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
-          </CardFooter>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-xs font-medium text-muted-foreground uppercase">Email</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="h-11 bg-secondary border-border rounded-xl" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-xs font-medium text-muted-foreground uppercase">Password</Label>
+            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-11 bg-secondary border-border rounded-xl" />
+          </div>
+
+          <Button type="submit" className="w-full h-11 rounded-xl gradient-primary text-white font-semibold uppercase tracking-wider border-0" disabled={loading}>
+            {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            {isSignUp ? 'Sign Up' : 'Sign In'}
+          </Button>
+
+          <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors pt-1">
+            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+          </button>
         </form>
-      </Card>
-      <p className="mt-6 text-xs text-muted-foreground">&copy; {new Date().getFullYear()} Kabir Singh. All rights reserved.</p>
+
+        <p className="mt-6 text-center text-[10px] text-muted-foreground/50">&copy; {new Date().getFullYear()} Kabir Singh</p>
+      </div>
     </div>
   );
 };
