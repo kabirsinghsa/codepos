@@ -168,21 +168,21 @@ const Reports = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="page-container">
+      <header className="page-header">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-primary" />
+            <div className="p-2 rounded-xl gradient-primary text-white">
+              <TrendingUp className="w-5 h-5" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight uppercase italic">Intelligence Hub</h1>
+            <h1 className="text-lg font-bold tracking-tight uppercase">Reports</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={exportCSV} variant="outline" size="sm" className="gap-2 font-black text-[10px] rounded-full border-2 border-primary/20">
-              <Download className="w-3 h-3" /> EXPORT REPORT
+          <div className="flex items-center gap-2">
+            <Button onClick={exportCSV} variant="outline" size="sm" className="gap-2 text-[10px] font-semibold rounded-lg border-border uppercase tracking-wider">
+              <Download className="w-3 h-3" /> Export
             </Button>
-            <Link to="/" className="text-[10px] font-black text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase tracking-widest bg-secondary px-3 py-1.5 rounded-full border border-border">
-              <ArrowLeft className="w-3 h-3" /> Dashboard
+            <Link to="/" className="text-[10px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 uppercase tracking-wider bg-secondary px-3 py-1.5 rounded-lg border border-border">
+              <ArrowLeft className="w-3 h-3" /> Back
             </Link>
           </div>
         </div>

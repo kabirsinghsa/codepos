@@ -154,18 +154,18 @@ const Packages = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+    <div className="page-container">
+      <header className="page-header">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <Car className="w-6 h-6" />
+          <div className="p-2 rounded-xl gradient-primary text-white">
+            <Car className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">Unlimited Wash Packages</h1>
-            <p className="text-xs text-muted-foreground">Time-based packages with plate recognition</p>
+            <h1 className="text-lg font-bold text-foreground">Wash Packages</h1>
+            <p className="text-[10px] text-muted-foreground font-medium">Unlimited plans with plate recognition</p>
           </div>
         </div>
       </header>
@@ -179,14 +179,14 @@ const Packages = () => {
             return (
               <Card
                 key={tier.id}
-                className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'}`}
+                className={`cursor-pointer transition-all premium-card border-0 ${isSelected ? 'ring-2 ring-primary !border-primary/40' : ''}`}
                 onClick={() => setPackageType(tier.id)}
               >
                 <CardContent className="p-5 text-center space-y-2">
-                  <Car className={`w-8 h-8 mx-auto ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <Car className={`w-7 h-7 mx-auto ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                   <h3 className="font-bold text-foreground">{tier.label}</h3>
-                  <p className="text-2xl font-bold text-primary">R{mp.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/month</span></p>
-                  <p className="text-xs text-muted-foreground">♾️ Unlimited washes included</p>
+                  <p className="text-2xl font-bold text-primary">R{mp.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                  <p className="text-[10px] text-muted-foreground">♾️ Unlimited washes</p>
                 </CardContent>
               </Card>
             );

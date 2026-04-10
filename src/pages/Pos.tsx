@@ -193,25 +193,28 @@ const Pos = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="page-container flex flex-col">
+      <header className="page-header">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+          <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-black uppercase tracking-tight italic">Point of Sale</h1>
+          <div className="p-2 rounded-xl gradient-primary text-white">
+            <ShoppingCart className="w-5 h-5" />
+          </div>
+          <h1 className="text-lg font-bold uppercase tracking-tight">Point of Sale</h1>
 
           {siteName && (
-            <div className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900 text-zinc-100 rounded-full ml-4 border border-zinc-800 shadow-lg">
-              <Store className="w-3.5 h-3.5 text-orange-500" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{siteName}</span>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-secondary text-foreground rounded-lg ml-2 border border-border">
+              <Store className="w-3.5 h-3.5 text-primary" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">{siteName}</span>
             </div>
           )}
 
           <div className="ml-auto flex items-center gap-2">
             {lastReceipt && (
-              <Button variant="outline" size="sm" onClick={() => printReceipt(lastReceipt)} className="gap-2 font-black text-[10px] rounded-xl border-2">
-                <Printer className="w-4 h-4" /> REPRINT
+              <Button variant="outline" size="sm" onClick={() => printReceipt(lastReceipt)} className="gap-2 text-[10px] font-semibold rounded-lg border-border uppercase tracking-wider">
+                <Printer className="w-3.5 h-3.5" /> Reprint
               </Button>
             )}
           </div>
