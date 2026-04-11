@@ -64,12 +64,6 @@ const Pos = () => {
   }, [userSiteId]);
 
   const printReceipt = useCallback((receiptData: { items: BasketItem[]; total: number; date: Date; txId: string }) => {
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (!w) {
-      toast.error("Popup blocked! Please allow popups to print receipts.");
-      return;
-    }
-
     const itemsHtml = receiptData.items.map(i => `
       <tr>
         <td style="text-align:left;padding:4px 0;">${i.product.name.toUpperCase()}</td>
@@ -78,10 +72,10 @@ const Pos = () => {
       </tr>
     `).join('');
 
-    w.document.write(`
-      <!DOCTYPE html><html><head><title>Bulldog Receipt</title>
+    const html = `<!DOCTYPE html><html><head><title>Receipt</title>
       <style>
-        body { font-family: 'Courier New', monospace; width: 280px; margin: 0 auto; padding: 20px; font-size: 12px; color: #000; line-height: 1.4; }
+        @page { margin: 0; size: 80mm auto; }
+        body { font-family: 'Courier New', monospace; width: 72mm; margin: 0 auto; padding: 8mm 4mm; font-size: 12px; color: #000; line-height: 1.4; }
         .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
         .header h1 { font-size: 18px; margin: 0; font-weight: 900; }
         table { width: 100%; border-collapse: collapse; margin: 10px 0; }
@@ -103,10 +97,55 @@ const Pos = () => {
         </table>
         <div class="total-box"><p>TOTAL: R${receiptData.total.toFixed(2)}</p></div>
         <div class="footer"><p>Thank you for your business!</p></div>
-        <script>window.onload=function(){ window.print(); setTimeout(function(){ window.close(); }, 500); }</script>
-      </body></html>
-    `);
-    w.document.close();
+      </body></html>`;
+
+    // Try iframe approach first (more reliable), fall back to popup
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '80mm';
+    iframe.style.height = '0';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(html);
+      iframeDoc.close();
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error('Print failed:', e);
+          toast.error('Print failed. Try the popup method.');
+        }
+        setTimeout(() => document.body.removeChild(iframe), 2000);
+      };
+
+      // Trigger load for already-loaded content
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          // fallback: open in new window
+          const w = window.open('', '_blank', 'width=400,height=600');
+          if (w) {
+            w.document.write(html);
+            w.document.close();
+            w.onload = () => { w.print(); setTimeout(() => w.close(), 1000); };
+          } else {
+            toast.error('Could not open print dialog. Please allow popups.');
+          }
+        }
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch {}
+        }, 3000);
+      }, 500);
+    }
   }, [businessName, businessPhone, siteName]);
 
   const addToBasket = (product: PosProduct) => {
