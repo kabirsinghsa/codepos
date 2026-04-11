@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import Footer from '@/components/Footer';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, X, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Site {
@@ -21,21 +21,29 @@ interface Profile {
   site_id: string | null;
 }
 
+interface UserRole {
+  user_id: string;
+  role: string;
+}
+
 const UserManagement = () => {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
-      const [profilesRes, sitesRes] = await Promise.all([
+      const [profilesRes, sitesRes, rolesRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('sites').select('id, name').eq('active', true).order('name'),
+        supabase.from('user_roles').select('user_id, role'),
       ]);
       setProfiles((profilesRes.data as Profile[]) || []);
       setSites((sitesRes.data as Site[]) || []);
+      setUserRoles((rolesRes.data as UserRole[]) || []);
       setLoading(false);
     };
     fetch();
@@ -67,6 +75,30 @@ const UserManagement = () => {
       setProfiles(prev => prev.map(p => p.id === userId ? { ...p, site_id: siteId } : p));
       toast.success('Site assigned');
     }
+  };
+
+  const getUserRole = (userId: string): string => {
+    const role = userRoles.find(r => r.user_id === userId);
+    return role?.role || 'user';
+  };
+
+  const assignRole = async (userId: string, role: string) => {
+    // Remove existing roles first
+    await supabase.from('user_roles').delete().eq('user_id', userId);
+
+    if (role !== 'user') {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role } as any);
+      if (error) { toast.error('Failed to assign role'); return; }
+    }
+
+    setUserRoles(prev => {
+      const filtered = prev.filter(r => r.user_id !== userId);
+      if (role !== 'user') filtered.push({ user_id: userId, role });
+      return filtered;
+    });
+    toast.success(`Role updated to ${role}`);
   };
 
   if (loading) {
@@ -117,16 +149,32 @@ const UserManagement = () => {
                   </Button>
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Assigned Site</label>
-                <select
-                  value={profile.site_id || ''}
-                  onChange={e => assignSite(profile.id, e.target.value || null)}
-                  className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground w-full"
-                >
-                  <option value="">No site (admin sees all)</option>
-                  {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Assigned Site</label>
+                  <select
+                    value={profile.site_id || ''}
+                    onChange={e => assignSite(profile.id, e.target.value || null)}
+                    className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground w-full"
+                  >
+                    <option value="">No site (admin sees all)</option>
+                    {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                    <Shield className="w-3 h-3" /> Role
+                  </label>
+                  <select
+                    value={getUserRole(profile.id)}
+                    onChange={e => assignRole(profile.id, e.target.value)}
+                    className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground w-full"
+                  >
+                    <option value="user">User</option>
+                    <option value="site_manager">Site Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
               </div>
             </CardContent>
           </Card>

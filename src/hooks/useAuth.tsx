@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   approved: boolean | null;
   isAdmin: boolean;
+  isSiteManager: boolean;
   siteId: string | null;
   signOut: () => Promise<void>;
 }
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   approved: null,
   isAdmin: false,
+  isSiteManager: false,
   siteId: null,
   signOut: async () => {},
 });
@@ -27,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [approved, setApproved] = useState<boolean | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSiteManager, setIsSiteManager] = useState(false);
   const [siteId, setSiteId] = useState<string | null>(null);
 
   const checkProfile = async (userId: string) => {
@@ -39,14 +42,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSiteId((data as any)?.site_id ?? null);
   };
 
-  const checkAdmin = async (userId: string) => {
+  const checkRoles = async (userId: string) => {
     const { data } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-    setIsAdmin(!!data);
+      .eq('user_id', userId);
+    const roles = (data || []).map(r => r.role);
+    setIsAdmin(roles.includes('admin'));
+    setIsSiteManager(roles.includes('site_manager'));
   };
 
   useEffect(() => {
@@ -54,10 +57,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       if (session?.user) {
         checkProfile(session.user.id);
-        checkAdmin(session.user.id);
+        checkRoles(session.user.id);
       } else {
         setApproved(null);
         setIsAdmin(false);
+        setIsSiteManager(false);
         setSiteId(null);
       }
       setLoading(false);
@@ -67,10 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       if (session?.user) {
         checkProfile(session.user.id);
-        checkAdmin(session.user.id);
+        checkRoles(session.user.id);
       } else {
         setApproved(null);
         setIsAdmin(false);
+        setIsSiteManager(false);
         setSiteId(null);
       }
       setLoading(false);
@@ -84,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, approved, isAdmin, siteId, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, approved, isAdmin, isSiteManager, siteId, signOut }}>
       {children}
     </AuthContext.Provider>
   );

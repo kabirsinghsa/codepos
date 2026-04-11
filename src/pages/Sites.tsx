@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil } from 'lucide-react';
 import Footer from '@/components/Footer';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Site {
   id: string;
@@ -20,6 +21,7 @@ interface Site {
 
 const Sites = () => {
   const navigate = useNavigate();
+  const { isAdmin, isSiteManager, siteId } = useAuth();
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,15 +31,25 @@ const Sites = () => {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
 
+  const canManageAll = isAdmin;
+  const canEditOwn = isSiteManager && !!siteId;
+
+  // Redirect if no access
+  useEffect(() => {
+    if (!isAdmin && !isSiteManager) navigate('/');
+  }, [isAdmin, isSiteManager, navigate]);
+
   const fetchSites = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('sites')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase.from('sites').select('*').order('created_at', { ascending: false });
+    // Site managers only see their own site
+    if (!canManageAll && canEditOwn) {
+      query = query.eq('id', siteId!);
+    }
+    const { data, error } = await query;
     if (error) toast.error('Failed to load sites');
     else setSites((data as any[]) || []);
     setLoading(false);
-  }, []);
+  }, [canManageAll, canEditOwn, siteId]);
 
   useEffect(() => { fetchSites(); }, [fetchSites]);
 
@@ -53,6 +65,12 @@ const Sites = () => {
     setSaving(true);
     try {
       if (editingId) {
+        // Site managers can only update their own site
+        if (!canManageAll && canEditOwn && editingId !== siteId) {
+          toast.error('You can only edit your own site');
+          setSaving(false);
+          return;
+        }
         const { error } = await supabase
           .from('sites')
           .update({ name: name.trim(), address: address.trim(), phone: phone.trim(), updated_at: new Date().toISOString() } as any)
@@ -60,6 +78,7 @@ const Sites = () => {
         if (error) throw error;
         toast.success('Site updated');
       } else {
+        if (!canManageAll) { toast.error('Only admins can create sites'); setSaving(false); return; }
         const { error } = await supabase
           .from('sites')
           .insert({ name: name.trim(), address: address.trim(), phone: phone.trim() } as any);
@@ -76,6 +95,7 @@ const Sites = () => {
   };
 
   const handleEdit = (site: Site) => {
+    if (!canManageAll && site.id !== siteId) return;
     setEditingId(site.id);
     setName(site.name);
     setAddress(site.address);
@@ -83,6 +103,7 @@ const Sites = () => {
   };
 
   const handleToggleActive = async (site: Site) => {
+    if (!canManageAll) { toast.error('Only admins can change site status'); return; }
     const { error } = await supabase
       .from('sites')
       .update({ active: !site.active, updated_at: new Date().toISOString() } as any)
@@ -92,6 +113,7 @@ const Sites = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManageAll) { toast.error('Only admins can delete sites'); return; }
     const { error } = await supabase.from('sites').delete().eq('id', id);
     if (error) toast.error('Failed to delete site');
     else { toast.success('Site deleted'); fetchSites(); }
@@ -117,42 +139,47 @@ const Sites = () => {
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">Site Management</h1>
-            <p className="text-xs text-muted-foreground">Manage your car wash locations</p>
+            <p className="text-xs text-muted-foreground">
+              {canManageAll ? 'Manage your car wash locations' : 'Edit your site details'}
+            </p>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {editingId ? 'Edit Site' : 'Add New Site'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Site Name *</label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Street Wash" className="bg-secondary border-border" />
+        {/* Only show create form for admins, or edit form when editing */}
+        {(canManageAll || editingId) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                {editingId ? 'Edit Site' : 'Add New Site'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Site Name *</label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Street Wash" className="bg-secondary border-border" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Address</label>
+                  <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 123 Main St" className="bg-secondary border-border" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0812345678" className="font-mono bg-secondary border-border" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Address</label>
-                <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 123 Main St" className="bg-secondary border-border" />
+              <div className="flex gap-2">
+                <Button onClick={handleSave} disabled={saving} className="gap-2">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {editingId ? 'Update Site' : 'Add Site'}
+                </Button>
+                {editingId && <Button variant="outline" onClick={resetForm}>Cancel</Button>}
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0812345678" className="font-mono bg-secondary border-border" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleSave} disabled={saving} className="gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                {editingId ? 'Update Site' : 'Add Site'}
-              </Button>
-              {editingId && <Button variant="outline" onClick={resetForm}>Cancel</Button>}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
@@ -179,15 +206,21 @@ const Sites = () => {
                       {site.phone && <p>📞 {site.phone}</p>}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleEdit(site)}>
-                        <Pencil className="w-3 h-3" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleToggleActive(site)}>
-                        {site.active ? 'Deactivate' : 'Activate'}
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => handleDelete(site.id)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                      {(canManageAll || site.id === siteId) && (
+                        <Button variant="outline" size="sm" className="gap-1" onClick={() => handleEdit(site)}>
+                          <Pencil className="w-3 h-3" /> Edit
+                        </Button>
+                      )}
+                      {canManageAll && (
+                        <>
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => handleToggleActive(site)}>
+                            {site.active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => handleDelete(site.id)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
