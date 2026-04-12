@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Plus, Car, ArrowLeft, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Car, ArrowLeft, Trash2, Pencil, Save } from 'lucide-react';
 import Footer from '@/components/Footer';
 
 interface WashPackage {
@@ -57,6 +58,15 @@ const Packages = () => {
   const [exteriorPrice, setExteriorPrice] = useState(500);
   const [interiorPrice, setInteriorPrice] = useState(800);
 
+  // Edit state
+  const [editPkg, setEditPkg] = useState<WashPackage | null>(null);
+  const [editForm, setEditForm] = useState({ vehicle_reg: '', vehicle_make: '', vehicle_colour: '', customer_phone: '', wash_type: '', price: '', end_date: '', active: true });
+  const [saving, setSaving] = useState(false);
+
+  // Delete confirm state
+  const [deletePkg, setDeletePkg] = useState<WashPackage | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const monthlyPrice = packageType === 'ultimate_exterior' ? exteriorPrice : interiorPrice;
   const totalPrice = monthlyPrice * (duration / 30);
 
@@ -73,11 +83,8 @@ const Packages = () => {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchPackages();
-  }, [fetchPackages]);
+  useEffect(() => { fetchPackages(); }, [fetchPackages]);
 
-  // Fetch admin-configured package prices
   useEffect(() => {
     const fetchPrices = async () => {
       const { data } = await supabase
@@ -95,15 +102,11 @@ const Packages = () => {
   }, []);
 
   const handleCreate = async () => {
-    if (!vehicleReg.trim()) {
-      toast.error('Registration number is required');
-      return;
-    }
+    if (!vehicleReg.trim()) { toast.error('Registration number is required'); return; }
     setCreating(true);
     try {
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + duration);
-
       const { error } = await supabase.from('wash_packages').insert({
         vehicle_reg: vehicleReg.trim().toUpperCase(),
         vehicle_make: vehicleMake.trim(),
@@ -114,32 +117,69 @@ const Packages = () => {
         start_date: new Date().toISOString(),
         end_date: endDate.toISOString(),
       } as any);
-
       if (error) throw error;
       toast.success(`Package created for ${vehicleReg.toUpperCase()}`);
-      setVehicleReg('');
-      setVehicleMake('');
-      setVehicleColour('');
-      setCustomerPhone('');
+      setVehicleReg(''); setVehicleMake(''); setVehicleColour(''); setCustomerPhone('');
       fetchPackages();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create package');
-    } finally {
-      setCreating(false);
-    }
+    } finally { setCreating(false); }
   };
 
-  const handleDeactivate = async (id: string) => {
-    const { error } = await supabase
-      .from('wash_packages')
-      .update({ active: false, updated_at: new Date().toISOString() } as any)
-      .eq('id', id);
-    if (error) {
-      toast.error('Failed to deactivate');
-    } else {
-      toast.success('Package deactivated');
+  const openEdit = (pkg: WashPackage) => {
+    const endLocal = new Date(new Date(pkg.end_date).getTime() - new Date(pkg.end_date).getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    setEditForm({
+      vehicle_reg: pkg.vehicle_reg,
+      vehicle_make: pkg.vehicle_make,
+      vehicle_colour: pkg.vehicle_colour,
+      customer_phone: pkg.customer_phone,
+      wash_type: pkg.wash_type,
+      price: String(pkg.price),
+      end_date: endLocal,
+      active: pkg.active,
+    });
+    setEditPkg(pkg);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editPkg) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('wash_packages')
+        .update({
+          vehicle_reg: editForm.vehicle_reg.trim().toUpperCase(),
+          vehicle_make: editForm.vehicle_make.trim(),
+          vehicle_colour: editForm.vehicle_colour.trim(),
+          customer_phone: editForm.customer_phone.trim(),
+          wash_type: editForm.wash_type,
+          price: Number(editForm.price),
+          end_date: new Date(editForm.end_date).toISOString(),
+          active: editForm.active,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', editPkg.id);
+      if (error) throw error;
+      toast.success('Package updated');
+      setEditPkg(null);
       fetchPackages();
-    }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update');
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deletePkg) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from('wash_packages').delete().eq('id', deletePkg.id);
+      if (error) throw error;
+      toast.success(`Package for ${deletePkg.vehicle_reg} deleted`);
+      setDeletePkg(null);
+      fetchPackages();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete');
+    } finally { setDeleting(false); }
   };
 
   const getPackageLabel = (type: string) =>
@@ -204,48 +244,26 @@ const Packages = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Registration Number *</label>
-                <Input
-                  value={vehicleReg}
-                  onChange={(e) => setVehicleReg(e.target.value)}
-                  placeholder="e.g. CA 123-456"
-                  className="font-mono bg-secondary border-border uppercase"
-                />
+                <Input value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. CA 123-456" className="font-mono bg-secondary border-border uppercase" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Make / Model</label>
-                <Input
-                  value={vehicleMake}
-                  onChange={(e) => setVehicleMake(e.target.value)}
-                  placeholder="e.g. Toyota Hilux"
-                  className="bg-secondary border-border"
-                />
+                <Input value={vehicleMake} onChange={(e) => setVehicleMake(e.target.value)} placeholder="e.g. Toyota Hilux" className="bg-secondary border-border" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Colour</label>
-                <Input
-                  value={vehicleColour}
-                  onChange={(e) => setVehicleColour(e.target.value)}
-                  placeholder="e.g. White"
-                  className="bg-secondary border-border"
-                />
+                <Input value={vehicleColour} onChange={(e) => setVehicleColour(e.target.value)} placeholder="e.g. White" className="bg-secondary border-border" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Customer Phone</label>
-                <Input
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="0812345678"
-                  className="font-mono bg-secondary border-border"
-                />
+                <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="0812345678" className="font-mono bg-secondary border-border" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Duration</label>
                 <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {DURATION_OPTIONS.map((d) => (
                       <SelectItem key={d.days} value={String(d.days)}>{d.label}</SelectItem>
@@ -255,12 +273,7 @@ const Packages = () => {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Total Price (R)</label>
-                <Input
-                  type="number"
-                  value={totalPrice.toFixed(2)}
-                  className="font-mono bg-secondary border-border"
-                  disabled
-                />
+                <Input type="number" value={totalPrice.toFixed(2)} className="font-mono bg-secondary border-border" disabled />
               </div>
             </div>
             <Button onClick={handleCreate} disabled={creating} className="gap-2">
@@ -298,21 +311,18 @@ const Packages = () => {
                         {pkg.vehicle_make && <p>{pkg.vehicle_make} — {pkg.vehicle_colour}</p>}
                         <p>{getPackageLabel(pkg.wash_type)} • R{Number(pkg.price).toFixed(2)}</p>
                         <p className="text-xs font-medium text-primary">♾️ Unlimited washes included</p>
-                        <p>
-                          {new Date(pkg.start_date).toLocaleDateString()} → {new Date(pkg.end_date).toLocaleDateString()}
-                        </p>
+                        <p>{new Date(pkg.start_date).toLocaleDateString()} → {new Date(pkg.end_date).toLocaleDateString()}</p>
                         {pkg.customer_phone && <p>📞 {pkg.customer_phone}</p>}
                       </div>
-                      {isActive && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1 text-destructive hover:text-destructive"
-                          onClick={() => handleDeactivate(pkg.id)}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Deactivate
-                        </Button>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => openEdit(pkg)}>
+                            <Pencil className="w-3 h-3" /> Edit
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" onClick={() => setDeletePkg(pkg)}>
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -323,6 +333,88 @@ const Packages = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editPkg} onOpenChange={(open) => !open && setEditPkg(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Package</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Registration</label>
+              <Input value={editForm.vehicle_reg} onChange={e => setEditForm(f => ({ ...f, vehicle_reg: e.target.value }))} className="font-mono uppercase bg-secondary border-border" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Make / Model</label>
+                <Input value={editForm.vehicle_make} onChange={e => setEditForm(f => ({ ...f, vehicle_make: e.target.value }))} className="bg-secondary border-border" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Colour</label>
+                <Input value={editForm.vehicle_colour} onChange={e => setEditForm(f => ({ ...f, vehicle_colour: e.target.value }))} className="bg-secondary border-border" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
+              <Input value={editForm.customer_phone} onChange={e => setEditForm(f => ({ ...f, customer_phone: e.target.value }))} className="font-mono bg-secondary border-border" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Package Type</label>
+                <Select value={editForm.wash_type} onValueChange={v => setEditForm(f => ({ ...f, wash_type: v }))}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PACKAGE_TYPES.map(t => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Price (R)</label>
+                <Input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} className="font-mono bg-secondary border-border" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">End Date</label>
+                <Input type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} className="bg-secondary border-border" />
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={editForm.active} onChange={e => setEditForm(f => ({ ...f, active: e.target.checked }))} className="rounded" />
+                  Active
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPkg(null)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={saving} className="gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={!!deletePkg} onOpenChange={(open) => !open && setDeletePkg(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Package</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to permanently delete the package for <strong className="text-foreground">{deletePkg?.vehicle_reg}</strong>? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePkg(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-2">
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
