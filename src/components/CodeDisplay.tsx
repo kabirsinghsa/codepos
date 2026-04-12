@@ -122,7 +122,7 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
   }
 }
 
-export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false, businessPhone = '000-000-0000', businessName = 'BULLDOG CARWASH', receiptFooter = 'Scan QR code at the wash bay to start.' }: CodeDisplayProps) {
+export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false, businessPhone = '000-000-0000', businessName = 'BULLDOG CARWASH', receiptFooter = 'Scan QR code at the wash bay to start.', siteName = '' }: CodeDisplayProps) {
   const status = getCodeStatus(code);
   const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
   const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || '';
