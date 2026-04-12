@@ -1,0 +1,1 @@
+DROP POLICY "Anon can read wash_packages by reg" ON public.wash_packages;
