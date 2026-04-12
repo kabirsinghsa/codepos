@@ -27,13 +27,11 @@ interface CodeDisplayProps {
   businessPhone?: string;
   businessName?: string;
   receiptFooter?: string;
+  siteName?: string;
 }
 
-function printReceipt(code: WashCode, businessPhone: string, businessName: string, receiptFooter: string) {
+function printReceipt(code: WashCode, businessPhone: string, businessName: string, receiptFooter: string, siteName: string) {
   const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
-  const printWindow = window.open('', '_blank', 'width=400,height=700');
-  if (!printWindow) return;
-
   const qrSvg = document.querySelector(`[data-qr-id="${code.id}"]`)?.innerHTML || '';
   const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || 'N/A';
   const extras = code.selectedExtras || [];
@@ -44,33 +42,31 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
     `<div class="row"><span class="label">${e.name}</span><span>R${e.price.toFixed(2)}</span></div>`
   ).join('') : '';
 
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Wash Code Receipt</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; }
-        .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 12px; margin-bottom: 12px; }
-        .header h1 { font-size: 18px; margin-bottom: 4px; }
-        .header p { font-size: 11px; color: #666; }
-        .qr-box { text-align: center; padding: 16px; margin: 16px 0; }
-        .qr-box svg { width: 180px; height: 180px; }
-        .qr-box .wash-type { font-size: 14px; margin-top: 8px; font-weight: bold; }
-        .qr-box .code-text { font-size: 10px; color: #999; margin-top: 4px; font-family: monospace; }
-        .details { margin: 12px 0; }
-        .details .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px dotted #ccc; }
-        .details .row .label { color: #666; }
-        .extras-header { font-size: 11px; font-weight: bold; margin-top: 8px; margin-bottom: 4px; text-transform: uppercase; color: #333; }
-        .price-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; font-weight: bold; border-top: 2px solid #000; margin-top: 8px; }
-        .footer { text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #333; font-size: 10px; color: #666; }
-        @media print { body { padding: 0; } }
-      </style>
-    </head>
+  const displayName = siteName ? `${businessName} ${siteName}`.toUpperCase() : businessName;
+
+  const html = `<!DOCTYPE html><html><head><title>Wash Code Receipt</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      @page { margin: 0; size: 80mm auto; }
+      body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; font-size: 12px; }
+      .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 12px; margin-bottom: 12px; }
+      .header h1 { font-size: 18px; margin-bottom: 4px; }
+      .header p { font-size: 11px; color: #666; }
+      .qr-box { text-align: center; padding: 16px; margin: 16px 0; }
+      .qr-box svg { width: 180px; height: 180px; }
+      .qr-box .wash-type { font-size: 14px; margin-top: 8px; font-weight: bold; }
+      .qr-box .code-text { font-size: 10px; color: #999; margin-top: 4px; font-family: monospace; }
+      .details { margin: 12px 0; }
+      .details .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px dotted #ccc; }
+      .details .row .label { color: #666; }
+      .extras-header { font-size: 11px; font-weight: bold; margin-top: 8px; margin-bottom: 4px; text-transform: uppercase; color: #333; }
+      .price-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; font-weight: bold; border-top: 2px solid #000; margin-top: 8px; }
+      .footer { text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #333; font-size: 10px; color: #666; }
+      @media print { body { padding: 0; } }
+    </style></head>
     <body>
       <div class="header">
-        <h1>${businessName}</h1>
+        <h1>${displayName}</h1>
         <p>Wash Code Receipt</p>
         <p style="margin-top:4px;">Tel: ${businessPhone}</p>
       </div>
@@ -86,28 +82,47 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
         <div class="row"><span class="label">Expires:</span><span>${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</span></div>
         ${code.totalWashes > 1 ? `<div class="row"><span class="label">Washes:</span><span>${code.washesUsed}/${code.totalWashes} used</span></div>` : ''}
       </div>
-      ${extras.length > 0 ? `
-        <div class="extras-header">Extras</div>
-        <div class="details">${extrasHtml}</div>
-      ` : ''}
-      <div class="price-row">
-        <span>TOTAL:</span>
-        <span>R${code.price.toFixed(2)}</span>
-      </div>
+      ${extras.length > 0 ? `<div class="extras-header">Extras</div><div class="details">${extrasHtml}</div>` : ''}
+      <div class="price-row"><span>TOTAL:</span><span>R${code.price.toFixed(2)}</span></div>
       <div class="footer">
         <p>${receiptFooter}</p>
         <p>Valid until ${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</p>
       </div>
-    </body>
-    </html>
-  `);
+    </body></html>`;
 
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  // Use iframe for reliable printing (avoids popup blockers)
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-10000px';
+  iframe.style.left = '-10000px';
+  iframe.style.width = '80mm';
+  iframe.style.height = '0';
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (iframeDoc) {
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        const w = window.open('', '_blank', 'width=400,height=600');
+        if (w) {
+          w.document.write(html);
+          w.document.close();
+          setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 1000); }, 300);
+        }
+      }
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 3000);
+    }, 500);
+  }
 }
 
-export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false, businessPhone = '000-000-0000', businessName = 'BULLDOG CARWASH', receiptFooter = 'Scan QR code at the wash bay to start.' }: CodeDisplayProps) {
+export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false, businessPhone = '000-000-0000', businessName = 'BULLDOG CARWASH', receiptFooter = 'Scan QR code at the wash bay to start.', siteName = '' }: CodeDisplayProps) {
   const status = getCodeStatus(code);
   const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
   const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || '';
@@ -163,7 +178,7 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
               <CalendarClock className="w-3.5 h-3.5" />
             </button>
           )}
-          <button onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Print">
+          <button onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter, siteName)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Print">
             <Printer className="w-3.5 h-3.5" />
           </button>
           <button
