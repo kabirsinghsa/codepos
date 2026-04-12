@@ -27,6 +27,7 @@ interface CodeDisplayProps {
   businessPhone?: string;
   businessName?: string;
   receiptFooter?: string;
+  siteName?: string;
 }
 
 function printReceipt(code: WashCode, businessPhone: string, businessName: string, receiptFooter: string) {

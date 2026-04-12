@@ -99,7 +99,6 @@ const Pos = () => {
         <div class="footer"><p>Thank you for your business!</p></div>
       </body></html>`;
 
-    // Try iframe approach first (more reliable), fall back to popup
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.top = '-10000px';
@@ -114,29 +113,18 @@ const Pos = () => {
       iframeDoc.write(html);
       iframeDoc.close();
 
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          console.error('Print failed:', e);
-          toast.error('Print failed. Try the popup method.');
-        }
-        setTimeout(() => document.body.removeChild(iframe), 2000);
-      };
-
-      // Trigger load for already-loaded content
+      // Single print attempt after content is ready
       setTimeout(() => {
         try {
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
         } catch (e) {
-          // fallback: open in new window
+          // Fallback: open in new window
           const w = window.open('', '_blank', 'width=400,height=600');
           if (w) {
             w.document.write(html);
             w.document.close();
-            w.onload = () => { w.print(); setTimeout(() => w.close(), 1000); };
+            setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 1000); }, 300);
           } else {
             toast.error('Could not open print dialog. Please allow popups.');
           }
