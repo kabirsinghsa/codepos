@@ -178,7 +178,7 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
               <CalendarClock className="w-3.5 h-3.5" />
             </button>
           )}
-          <button onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Print">
+          <button onClick={() => printReceipt(code, businessPhone, businessName, receiptFooter, siteName)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground" title="Print">
             <Printer className="w-3.5 h-3.5" />
           </button>
           <button
