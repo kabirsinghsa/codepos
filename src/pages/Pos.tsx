@@ -85,8 +85,8 @@ const Pos = () => {
       </style></head>
       <body>
         <div class="header">
-          <h1>${businessName}</h1>
-          <p>${siteName ? `BRANCH: ${siteName.toUpperCase()}` : ''}</p>
+          <h1>${siteName ? `${businessName} ${siteName.toUpperCase()}` : businessName}</h1>
+          <p>${businessPhone ? `TEL: ${businessPhone}` : ''}</p>
           <p>${businessPhone ? `TEL: ${businessPhone}` : ''}</p>
           <p>${receiptData.date.toLocaleDateString()} ${receiptData.date.toLocaleTimeString()}</p>
           <p style="font-size:9px; margin-top:4px;">TXID: ${receiptData.txId.toUpperCase()}</p>
