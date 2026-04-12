@@ -92,6 +92,16 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
+    const fetchSiteName = async () => {
+      if (siteId) {
+        const { data } = await supabase.from('sites').select('name').eq('id', siteId).single();
+        if (data) setSiteName(data.name);
+      }
+    };
+    fetchSiteName();
+  }, [siteId]);
+
+  useEffect(() => {
     const fetchActivePackages = async () => {
       let query = supabase
         .from('wash_packages')
@@ -410,7 +420,7 @@ const Index = () => {
                 <div className="py-20 text-center text-muted-foreground/40 uppercase text-[10px] font-medium tracking-widest">No matching transactions</div>
               ) : (
                 filteredCodes.map((code) => (
-                  <CodeDisplay key={code.id} code={code} onMarkUsed={handleMarkUsed} isAdmin={isAdmin} businessPhone={businessPhone} businessName={businessName} receiptFooter={receiptFooter} />
+                  <CodeDisplay key={code.id} code={code} onMarkUsed={handleMarkUsed} isAdmin={isAdmin} businessPhone={businessPhone} businessName={businessName} receiptFooter={receiptFooter} siteName={siteName} />
                 ))
               )}
             </div>
