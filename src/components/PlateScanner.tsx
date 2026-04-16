@@ -3,46 +3,11 @@ import { Car, Loader2, Camera, CameraOff, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import Tesseract from 'tesseract.js';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PlateScannerProps {
   onPlateDetected: (plate: string) => void;
   disabled?: boolean;
-}
-
-// SA plate patterns: 2-3 letters, space, 3 digits, space, 2 letters (e.g. CA 123-456, ABC 123 GP)
-const PLATE_PATTERNS = [
-  /[A-Z]{2,3}\s?\d{3}\s?[A-Z]{2}/,      // ABC 123 GP
-  /[A-Z]{2}\s?\d{3}[-\s]?\d{3}/,          // CA 123-456
-  /[A-Z]{3}\s?\d{3}\s?[A-Z]{2,3}/,        // ABC 123 GP
-  /[A-Z]{2,3}\d{3}[A-Z]{2,3}/,            // ABC123GP (no spaces)
-  /[A-Z]{1,3}\s?\d{2,5}\s?[A-Z]{0,3}/,    // Broader catch
-];
-
-function extractPlate(text: string): string | null {
-  // Clean up OCR text
-  const cleaned = text
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s\-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  for (const pattern of PLATE_PATTERNS) {
-    const match = cleaned.match(pattern);
-    if (match && match[0].replace(/\s/g, '').length >= 5) {
-      return match[0].replace(/\s+/g, ' ').trim();
-    }
-  }
-
-  // Fallback: look for any sequence with letters and digits that looks plate-like
-  const words = cleaned.split(/\s+/);
-  const combined = words.join('');
-  if (/[A-Z]{2,3}\d{3}[A-Z]{0,3}/.test(combined)) {
-    const m = combined.match(/[A-Z]{2,3}\d{3}[A-Z]{0,3}/);
-    if (m) return m[0];
-  }
-
-  return null;
 }
 
 const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
@@ -54,39 +19,7 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const workerRef = useRef<Tesseract.Worker | null>(null);
   const processingRef = useRef(false);
-
-  // Initialize Tesseract worker on mount
-  useEffect(() => {
-    let cancelled = false;
-    const initWorker = async () => {
-      try {
-        const worker = await Tesseract.createWorker('eng', 1, {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              setScanStatus(`Scanning... ${Math.round((m.progress || 0) * 100)}%`);
-            }
-          },
-        });
-        await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -',
-          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-        });
-        if (!cancelled) {
-          workerRef.current = worker;
-        }
-      } catch (err) {
-        console.error('Tesseract init error:', err);
-      }
-    };
-    initWorker();
-    return () => {
-      cancelled = true;
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    };
-  }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
@@ -131,67 +64,65 @@ const PlateScanner = ({ onPlateDetected, disabled }: PlateScannerProps) => {
   }, []);
 
   const processFrame = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || processingRef.current || disabled || !cameraActive || !workerRef.current) return;
+    if (!videoRef.current || !canvasRef.current || processingRef.current || disabled || !cameraActive) return;
 
     const video = videoRef.current;
     if (video.readyState !== 4 || video.videoWidth === 0) return;
 
     processingRef.current = true;
     setScanning(true);
+    setScanStatus('Sending to plate reader...');
 
     try {
       const canvas = canvasRef.current;
-      // Crop to center-bottom area where plates typically are
-      const cropH = Math.floor(video.videoHeight * 0.35);
-      const cropY = Math.floor(video.videoHeight * 0.5);
       canvas.width = video.videoWidth;
-      canvas.height = cropH;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-
-      // Draw cropped region
-      ctx.drawImage(video, 0, cropY, video.videoWidth, cropH, 0, 0, video.videoWidth, cropH);
-
-      // Increase contrast for better OCR
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        const val = avg > 128 ? 255 : 0; // Threshold to black/white
-        data[i] = val;
-        data[i + 1] = val;
-        data[i + 2] = val;
-      }
-      ctx.putImageData(imageData, 0, 0);
+      ctx.drawImage(video, 0, 0);
 
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png', 1)
+        canvas.toBlob(resolve, 'image/jpeg', 0.85)
       );
-      if (!blob || !workerRef.current) return;
+      if (!blob) return;
 
-      const { data: result } = await workerRef.current.recognize(blob);
-      const detectedPlate = extractPlate(result.text);
+      const formData = new FormData();
+      formData.append('upload', blob, 'plate.jpg');
 
-      if (detectedPlate && detectedPlate.length >= 5) {
+      // Call recognize-plate edge function
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const resp = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/recognize-plate`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await resp.json();
+
+      if (data.plate && data.plate.length >= 3 && data.score > 0.5) {
+        const detectedPlate = data.plate.toUpperCase();
         setPlate(detectedPlate);
-        toast.success(`Plate detected: ${detectedPlate}`);
+        toast.success(`Plate detected: ${detectedPlate} (${Math.round(data.score * 100)}% confidence)`);
         stopCamera();
         onPlateDetected(detectedPlate);
       } else {
-        setScanStatus('Scanning... Position plate in view');
+        setScanStatus('No plate found — position plate in view');
       }
     } catch (err) {
-      console.error('OCR error:', err);
+      console.error('Plate recognition error:', err);
+      setScanStatus('Recognition error — retrying...');
     } finally {
       processingRef.current = false;
       setScanning(false);
     }
   }, [disabled, cameraActive, onPlateDetected, stopCamera]);
 
-  // Auto-scan every 2 seconds when camera is active
+  // Auto-scan every 3 seconds when camera is active
   useEffect(() => {
     if (cameraActive && !disabled) {
-      intervalRef.current = setInterval(processFrame, 2000);
+      intervalRef.current = setInterval(processFrame, 3000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
