@@ -108,7 +108,8 @@ const Index = () => {
         .select('*', { count: 'exact', head: true })
         .eq('active', true)
         .gte('end_date', new Date().toISOString());
-      if (siteId) query = query.eq('site_id', siteId);
+      // Include packages assigned to this site OR unassigned (cross-site valid)
+      if (siteId) query = query.or(`site_id.eq.${siteId},site_id.is.null`);
       const { count } = await query;
       setActivePackagesCount(count || 0);
     };
