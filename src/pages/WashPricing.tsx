@@ -274,11 +274,11 @@ const ExtraCard = ({
             <label className="text-xs text-muted-foreground">Price (R)</label>
             <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
           </div>
-          <Button size="sm" className="gap-2" disabled={saving} onClick={() => onSave(extra.id, name, price)}>
+          <Button type="button" size="sm" className="gap-2" disabled={saving} onClick={() => onSave(extra.id, name, price)}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save
           </Button>
-          <Button size="sm" variant="destructive" className="gap-2" onClick={() => onDelete(extra.id)}>
+          <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={() => onDelete(extra.id)}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
