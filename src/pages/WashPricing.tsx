@@ -196,7 +196,7 @@ const WashPricing = () => {
                   <label className="text-xs text-muted-foreground">Price (R)</label>
                   <Input type="number" value={newExtraPrice} onChange={e => setNewExtraPrice(Number(e.target.value))} />
                 </div>
-                <Button size="sm" className="gap-2" disabled={addingExtra} onClick={addExtra}>
+                <Button type="button" size="sm" className="gap-2" disabled={addingExtra} onClick={addExtra}>
                   {addingExtra ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   Add
                 </Button>
