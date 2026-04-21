@@ -32,56 +32,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSiteManager, setIsSiteManager] = useState(false);
   const [siteId, setSiteId] = useState<string | null>(null);
 
-  const checkProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('approved, site_id')
-      .eq('id', userId)
-      .single();
-    setApproved(data?.approved ?? false);
-    setSiteId((data as any)?.site_id ?? null);
-  };
-
-  const checkRoles = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-    const roles = (data || []).map(r => r.role);
+  const loadUserData = async (userId: string) => {
+    const [profileRes, rolesRes] = await Promise.all([
+      supabase.from('profiles').select('approved, site_id').eq('id', userId).single(),
+      supabase.from('user_roles').select('role').eq('user_id', userId),
+    ]);
+    setApproved(profileRes.data?.approved ?? false);
+    setSiteId((profileRes.data as any)?.site_id ?? null);
+    const roles = (rolesRes.data || []).map((r: any) => r.role);
     setIsAdmin(roles.includes('admin'));
     setIsSiteManager(roles.includes('site_manager'));
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    let mounted = true;
+
+    const handleSession = async (session: Session | null) => {
+      if (!mounted) return;
       setSession(session);
       if (session?.user) {
-        checkProfile(session.user.id);
-        checkRoles(session.user.id);
+        await loadUserData(session.user.id);
       } else {
         setApproved(null);
         setIsAdmin(false);
         setIsSiteManager(false);
         setSiteId(null);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        checkProfile(session.user.id);
-        checkRoles(session.user.id);
-      } else {
-        setApproved(null);
-        setIsAdmin(false);
-        setIsSiteManager(false);
-        setSiteId(null);
-      }
-      setLoading(false);
+      handleSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
