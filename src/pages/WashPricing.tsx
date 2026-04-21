@@ -61,13 +61,16 @@ const WashPricing = () => {
   const updatePrice = async (washType: string, vehicleType: string, newPrice: number, newName: string, newDescription: string) => {
     const key = `${washType}-${vehicleType}`;
     setSaving(key);
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('wash_prices')
       .update({ price: newPrice, name: newName, description: newDescription, updated_at: new Date().toISOString() })
       .eq('wash_type', washType)
-      .eq('vehicle_type', vehicleType);
+      .eq('vehicle_type', vehicleType)
+      .select();
 
-    if (error) toast.error('Failed to update price');
+    console.log('[WashPricing] update result', { washType, vehicleType, error, data });
+    if (error) toast.error(`Failed to update price: ${error.message}`);
+    else if (!data || data.length === 0) toast.error('No row updated — check permissions');
     else {
       setPrices(prev => prev.map(p =>
         p.wash_type === washType && p.vehicle_type === vehicleType
