@@ -6,57 +6,57 @@
 
 @layer base {
   :root {
-    /* Dark Premium: Deep blacks with orange accent */
-    --background: 240 12% 3%;
-    --foreground: 0 0% 96%;
+    /* Executive Charcoal & Gold — refined dark professional theme */
+    --background: 30 6% 6%;
+    --foreground: 40 15% 92%;
 
-    --card: 240 10% 5.5%;
-    --card-foreground: 0 0% 96%;
+    --card: 30 6% 9%;
+    --card-foreground: 40 15% 92%;
 
-    --popover: 240 12% 5%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 30 6% 8%;
+    --popover-foreground: 40 15% 92%;
 
-    /* Brand Primary: Vibrant Orange */
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
+    /* Brand Primary: Muted Champagne Gold */
+    --primary: 42 55% 58%;
+    --primary-foreground: 30 10% 8%;
 
-    --secondary: 240 8% 8%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 30 5% 12%;
+    --secondary-foreground: 40 12% 88%;
 
-    --muted: 240 8% 9%;
-    --muted-foreground: 240 5% 55%;
+    --muted: 30 5% 13%;
+    --muted-foreground: 35 8% 60%;
 
-    --accent: 24 95% 53%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 42 55% 58%;
+    --accent-foreground: 30 10% 8%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 65% 48%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 6% 10%;
-    --input: 240 6% 10%;
-    --ring: 24 95% 53%;
+    --border: 30 5% 16%;
+    --input: 30 5% 16%;
+    --ring: 42 55% 58%;
 
-    --radius: 1rem;
+    --radius: 0.625rem;
 
-    /* Wash tiers */
-    --wash-basic: 24 95% 53%;
-    --wash-standard: 20 90% 48%;
-    --wash-premium: 15 85% 45%;
-    --wash-ultimate: 10 80% 40%;
+    /* Wash tiers — graduated gold to bronze */
+    --wash-basic: 42 45% 62%;
+    --wash-standard: 40 50% 56%;
+    --wash-premium: 38 55% 48%;
+    --wash-ultimate: 35 60% 40%;
 
-    --success: 142 71% 45%;
+    --success: 150 45% 45%;
     --success-foreground: 0 0% 98%;
 
     --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'Inter', sans-serif;
 
     /* Premium extras */
-    --glass-bg: 240 10% 6% / 0.7;
-    --glass-border: 240 6% 14%;
-    --gradient-primary: linear-gradient(135deg, hsl(24 95% 53%), hsl(15 85% 45%));
-    --gradient-surface: linear-gradient(180deg, hsl(240 10% 6%), hsl(240 12% 3%));
-    --shadow-glow: 0 0 40px hsl(24 95% 53% / 0.15);
-    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.4), 0 2px 8px hsl(0 0% 0% / 0.3);
+    --glass-bg: 30 6% 9% / 0.78;
+    --glass-border: 30 5% 18%;
+    --gradient-primary: linear-gradient(135deg, hsl(42 55% 62%), hsl(38 50% 48%));
+    --gradient-surface: linear-gradient(180deg, hsl(30 6% 9%), hsl(30 6% 6%));
+    --shadow-glow: 0 0 32px hsl(42 55% 58% / 0.10);
+    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.5), 0 2px 8px hsl(0 0% 0% / 0.35);
   }
 }
 
