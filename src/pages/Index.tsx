@@ -324,6 +324,7 @@ const Index = () => {
               <Button variant="outline" onClick={() => navigate('/pos-products')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Package className="w-4 h-4 text-primary" /> Catalog</Button>
               <Button variant="outline" onClick={() => navigate('/sites')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><MapPin className="w-4 h-4 text-primary" /> Sites</Button>
               <Button variant="outline" onClick={() => navigate('/package-orders')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><ClipboardList className="w-4 h-4 text-primary" /> Orders</Button>
+              <Button variant="outline" onClick={() => navigate('/theme')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Settings className="w-4 h-4 text-primary" /> Theme</Button>
               <Button variant="outline" onClick={() => navigate('/install')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0 !border-primary/30"><QrCode className="w-4 h-4 text-primary" /> Deploy</Button>
             </div>
 
