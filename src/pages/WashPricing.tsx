@@ -239,7 +239,7 @@ const PriceCard = ({
           <label className="text-xs text-muted-foreground">Price (R)</label>
           <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
         </div>
-        <Button size="sm" className="gap-2" disabled={saving} onClick={() => onSave(price, name, description)}>
+        <Button type="button" size="sm" className="gap-2" disabled={saving} onClick={() => onSave(price, name, description)}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save
         </Button>
