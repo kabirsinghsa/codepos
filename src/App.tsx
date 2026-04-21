@@ -4,8 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/hooks/useTheme";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
+import ThemeSettings from "./pages/ThemeSettings";
 import Index from "./pages/Index";
 import Kiosk from "./pages/Kiosk";
 
@@ -31,6 +33,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ThemeProvider>
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -47,11 +50,13 @@ const App = () => (
             <Route path="/pos-products" element={<AdminRoute><PosProducts /></AdminRoute>} />
             <Route path="/sites" element={<ProtectedRoute><Sites /></ProtectedRoute>} />
             <Route path="/package-orders" element={<AdminRoute><PackageOrders /></AdminRoute>} />
+            <Route path="/theme" element={<AdminRoute><ThemeSettings /></AdminRoute>} />
             <Route path="/install" element={<Install />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
