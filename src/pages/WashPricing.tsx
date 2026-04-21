@@ -103,19 +103,22 @@ const WashPricing = () => {
 
   const updateExtra = async (id: string, name: string, price: number) => {
     setSaving(id);
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('wash_extras')
       .update({ name, price, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select();
 
-    if (error) toast.error('Failed to update extra');
+    console.log('[WashPricing] extra update', { id, error, data });
+    if (error) toast.error(`Failed to update extra: ${error.message}`);
+    else if (!data || data.length === 0) toast.error('No row updated — check permissions');
     else toast.success('Extra updated');
     setSaving(null);
   };
 
   const deleteExtra = async (id: string) => {
     const { error } = await supabase.from('wash_extras').delete().eq('id', id);
-    if (error) toast.error('Failed to delete extra');
+    if (error) toast.error(`Failed to delete extra: ${error.message}`);
     else {
       setExtras(prev => prev.filter(e => e.id !== id));
       toast.success('Extra removed');
