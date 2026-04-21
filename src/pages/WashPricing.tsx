@@ -61,13 +61,16 @@ const WashPricing = () => {
   const updatePrice = async (washType: string, vehicleType: string, newPrice: number, newName: string, newDescription: string) => {
     const key = `${washType}-${vehicleType}`;
     setSaving(key);
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('wash_prices')
       .update({ price: newPrice, name: newName, description: newDescription, updated_at: new Date().toISOString() })
       .eq('wash_type', washType)
-      .eq('vehicle_type', vehicleType);
+      .eq('vehicle_type', vehicleType)
+      .select();
 
-    if (error) toast.error('Failed to update price');
+    console.log('[WashPricing] update result', { washType, vehicleType, error, data });
+    if (error) toast.error(`Failed to update price: ${error.message}`);
+    else if (!data || data.length === 0) toast.error('No row updated — check permissions');
     else {
       setPrices(prev => prev.map(p =>
         p.wash_type === washType && p.vehicle_type === vehicleType
@@ -100,19 +103,22 @@ const WashPricing = () => {
 
   const updateExtra = async (id: string, name: string, price: number) => {
     setSaving(id);
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('wash_extras')
       .update({ name, price, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select();
 
-    if (error) toast.error('Failed to update extra');
+    console.log('[WashPricing] extra update', { id, error, data });
+    if (error) toast.error(`Failed to update extra: ${error.message}`);
+    else if (!data || data.length === 0) toast.error('No row updated — check permissions');
     else toast.success('Extra updated');
     setSaving(null);
   };
 
   const deleteExtra = async (id: string) => {
     const { error } = await supabase.from('wash_extras').delete().eq('id', id);
-    if (error) toast.error('Failed to delete extra');
+    if (error) toast.error(`Failed to delete extra: ${error.message}`);
     else {
       setExtras(prev => prev.filter(e => e.id !== id));
       toast.success('Extra removed');
@@ -190,7 +196,7 @@ const WashPricing = () => {
                   <label className="text-xs text-muted-foreground">Price (R)</label>
                   <Input type="number" value={newExtraPrice} onChange={e => setNewExtraPrice(Number(e.target.value))} />
                 </div>
-                <Button size="sm" className="gap-2" disabled={addingExtra} onClick={addExtra}>
+                <Button type="button" size="sm" className="gap-2" disabled={addingExtra} onClick={addExtra}>
                   {addingExtra ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   Add
                 </Button>
@@ -233,7 +239,7 @@ const PriceCard = ({
           <label className="text-xs text-muted-foreground">Price (R)</label>
           <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
         </div>
-        <Button size="sm" className="gap-2" disabled={saving} onClick={() => onSave(price, name, description)}>
+        <Button type="button" size="sm" className="gap-2" disabled={saving} onClick={() => onSave(price, name, description)}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save
         </Button>
@@ -268,11 +274,11 @@ const ExtraCard = ({
             <label className="text-xs text-muted-foreground">Price (R)</label>
             <Input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
           </div>
-          <Button size="sm" className="gap-2" disabled={saving} onClick={() => onSave(extra.id, name, price)}>
+          <Button type="button" size="sm" className="gap-2" disabled={saving} onClick={() => onSave(extra.id, name, price)}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save
           </Button>
-          <Button size="sm" variant="destructive" className="gap-2" onClick={() => onDelete(extra.id)}>
+          <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={() => onDelete(extra.id)}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
