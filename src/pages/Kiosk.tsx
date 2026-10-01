@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car, XCircle } from 'lucide-react';
+import { Droplets, CheckCircle, AlertTriangle, Loader2, Camera, CameraOff, QrCode, Car, XCircle, Keyboard, Delete } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useSearchParams } from 'react-router-dom';
@@ -9,7 +9,7 @@ import Footer from '@/components/Footer';
 import PlateScanner from '@/components/PlateScanner';
 
 type BayStatus = 'idle' | 'washing' | 'complete' | 'error';
-type KioskMode = 'code' | 'plate';
+type KioskMode = 'code' | 'keypad' | 'plate';
 
 interface BayState {
   status: BayStatus;
@@ -55,6 +55,7 @@ const Kiosk = () => {
     started_at: null,
   });
   const [mode, setMode] = useState<KioskMode>('code');
+  const [typedCode, setTypedCode] = useState('');
   const [packageInfo, setPackageInfo] = useState<{ vehicle_reg?: string; days_remaining?: number } | null>(null);
 
   useEffect(() => {
@@ -108,6 +109,17 @@ const Kiosk = () => {
     }
   }, [siteConfig, stopScanner]);
 
+  const pressKey = (digit: string) => {
+    if (validating) return;
+    setTypedCode(prev => (prev.length < 6 ? prev + digit : prev));
+  };
+
+  const submitTypedCode = async () => {
+    if (typedCode.length !== 6 || validating) return;
+    await validateCode(typedCode);
+    setTypedCode('');
+  };
+
   const validatePlate = useCallback(async (plate: string) => {
     if (!siteConfig) return;
     setValidating(true);
@@ -155,9 +167,8 @@ const Kiosk = () => {
   useEffect(() => {
     if (bayState.status === 'washing' && siteConfig) {
       const timer = setTimeout(async () => {
-        await supabase.from('wash_bay_status').update({
-          status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
-        }).eq('id', siteConfig.id);
+        // Kiosk can only reset the bay to idle (secured RPC), never start a wash directly
+        await supabase.rpc('reset_bay_idle', { p_bay_id: siteConfig.id });
       }, 10000);
       return () => clearTimeout(timer);
     }
@@ -253,9 +264,12 @@ const Kiosk = () => {
         </motion.h2>
 
         {bayState.status === 'idle' && (
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             <button onClick={() => setMode('code')} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'code' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
               <QrCode className="w-5 h-5" /> SCAN CODE
+            </button>
+            <button onClick={() => { setTypedCode(''); setMode('keypad'); }} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'keypad' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
+              <Keyboard className="w-5 h-5" /> ENTER CODE
             </button>
             <button onClick={() => setMode('plate')} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'plate' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
               <Car className="w-5 h-5" /> SCAN PLATE
@@ -267,6 +281,40 @@ const Kiosk = () => {
           <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-3xl overflow-hidden border-4 border-primary bg-black shadow-2xl">
             <div id={scannerContainerId} className="w-full h-full" />
             {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
+          </div>
+        )}
+
+        {bayState.status === 'idle' && mode === 'keypad' && (
+          <div className="w-full max-w-xs mx-auto space-y-4">
+            <div className="flex justify-center gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className={`w-11 h-14 rounded-xl border-2 flex items-center justify-center text-3xl font-black ${typedCode[i] ? 'border-primary bg-card text-foreground' : 'border-border bg-muted/40'}`}>
+                  {typedCode[i] || ''}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {['1','2','3','4','5','6','7','8','9'].map(d => (
+                <button key={d} type="button" onClick={() => pressKey(d)} disabled={validating}
+                  className="h-16 rounded-2xl bg-card border-2 border-border text-2xl font-bold text-foreground active:scale-95 transition-transform disabled:opacity-50">
+                  {d}
+                </button>
+              ))}
+              <button type="button" onClick={() => setTypedCode(prev => prev.slice(0, -1))} disabled={validating || !typedCode}
+                aria-label="Delete digit"
+                className="h-16 rounded-2xl bg-secondary border-2 border-transparent flex items-center justify-center text-muted-foreground active:scale-95 transition-transform disabled:opacity-40">
+                <Delete className="w-7 h-7" />
+              </button>
+              <button type="button" onClick={() => pressKey('0')} disabled={validating}
+                className="h-16 rounded-2xl bg-card border-2 border-border text-2xl font-bold text-foreground active:scale-95 transition-transform disabled:opacity-50">
+                0
+              </button>
+              <button type="button" onClick={submitTypedCode} disabled={validating || typedCode.length !== 6}
+                className="h-16 rounded-2xl bg-primary text-primary-foreground text-lg font-black active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center">
+                {validating ? <Loader2 className="w-6 h-6 animate-spin" /> : 'GO'}
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">Type the 6-digit number printed under your QR code</p>
           </div>
         )}
 

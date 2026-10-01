@@ -577,6 +577,7 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { user_id: string }; Returns: boolean }
+      reset_bay_idle: { Args: { p_bay_id: number }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user" | "site_manager"

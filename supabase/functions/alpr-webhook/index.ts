@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-key, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 const washTypeToRelay: Record<string, string> = {
@@ -17,6 +17,24 @@ const washTypeToRelay: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
+  }
+
+  // SECURITY: require a shared secret so only your cameras can trigger washes.
+  // Set the ALPR_WEBHOOK_SECRET secret in Supabase, then add ?key=YOUR_SECRET to the
+  // camera's webhook URL (or send it in an "x-webhook-key" header).
+  // If the secret is not set yet, requests are still accepted (with a warning) so
+  // existing cameras keep working until you configure it.
+  const webhookSecret = Deno.env.get('ALPR_WEBHOOK_SECRET')
+  if (webhookSecret) {
+    const providedKey = new URL(req.url).searchParams.get('key') || req.headers.get('x-webhook-key') || ''
+    if (providedKey !== webhookSecret) {
+      console.warn('[ALPR] Rejected request with missing/invalid webhook key')
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  } else {
+    console.warn('[ALPR] ALPR_WEBHOOK_SECRET not set - webhook is open to anyone. Set it to secure this endpoint.')
   }
 
   try {
