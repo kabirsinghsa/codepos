@@ -115,6 +115,14 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Reject codes that have used up all their washes
+    if (washCode.used || (washCode.washes_used || 0) >= (washCode.total_washes || 1)) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'This code has already been used' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Update usage and trigger the local bay
     const { error: updateError } = await supabase
       .from('wash_codes')

@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
       }
     } catch (verifyErr) {
       console.error('PayFast validation request failed:', verifyErr)
+      // Fail closed: PayFast retries the ITN, so a temporary error is safe
+      return new Response('VALIDATION_UNAVAILABLE', { status: 503 })
     }
 
     // Fetch the order
@@ -102,7 +104,7 @@ Deno.serve(async (req) => {
     }
 
     // Verify amount matches
-    if (amountGross && Number(amountGross) !== Number(order.amount)) {
+    if (!amountGross || Math.abs(Number(amountGross) - Number(order.amount)) > 0.01) {
       console.error('Amount mismatch:', { expected: order.amount, received: amountGross })
       return new Response('AMOUNT_MISMATCH', { status: 400 })
     }

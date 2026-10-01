@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,9 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      return new Response(JSON.stringify({ error: 'AI API key not configured' }), {
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!anthropicKey) {
+      return new Response(JSON.stringify({ error: 'AI API key not configured (set ANTHROPIC_API_KEY)' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -26,60 +27,52 @@ serve(async (req) => {
       });
     }
 
-    // Convert image to base64
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    const mimeType = file.type || 'image/jpeg';
+    // Convert image to base64 (chunked, so large photos don't crash)
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base64 = encodeBase64(bytes);
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const mimeType = allowed.includes(file.type) ? file.type : 'image/jpeg';
 
-    // Use Gemini Flash vision via Lovable AI Gateway
-    const aiResp = await fetch('https://ai-gateway.lovable.dev/v1/chat/completions', {
+    // Claude vision (Anthropic API)
+    const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `You are a South African license plate reader. Look at this image and extract the vehicle license plate number. South African plates typically have formats like: ABC 123 GP, CA 123-456, CF 12345, etc.
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 50,
+        temperature: 0,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text', text: `You are a South African license plate reader. Look at this image and extract the vehicle license plate number. South African plates typically have formats like: ABC 123 GP, CA 123-456, CF 12345, etc.
 
 IMPORTANT RULES:
 - Return ONLY the plate text in uppercase, nothing else
 - Remove any dashes, use spaces between groups
 - If you see multiple plates, return the most prominent/readable one
 - If you cannot see any plate clearly, respond with exactly: NO_PLATE
-- Do NOT add any explanation, just the plate text or NO_PLATE`
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 50,
-        temperature: 0,
+- Do NOT add any explanation, just the plate text or NO_PLATE` },
+          ],
+        }],
       }),
     });
 
     if (!aiResp.ok) {
       const errText = await aiResp.text();
-      console.error('AI Gateway error:', errText);
+      console.error('Anthropic API error:', errText);
       return new Response(JSON.stringify({ error: 'AI recognition failed' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const aiData = await aiResp.json();
-    const rawPlate = aiData.choices?.[0]?.message?.content?.trim() || '';
-    
+    const rawPlate = (aiData.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+
     console.log('AI raw response:', rawPlate);
 
     if (!rawPlate || rawPlate === 'NO_PLATE') {

@@ -43,13 +43,32 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    // SECURITY: price is calculated here from business_settings, never trusted from the browser
+    const ALLOWED_TYPES = ['ultimate_exterior', 'ultimate_interior']
+    const ALLOWED_DAYS = [30, 60, 90, 180, 365]
+    const pkgType = ALLOWED_TYPES.includes(package_type) ? package_type : 'ultimate_exterior'
+    const days = ALLOWED_DAYS.includes(Number(duration_days)) ? Number(duration_days) : 30
+    const { data: priceRows } = await supabase
+      .from('business_settings')
+      .select('key, value')
+      .in('key', ['package_exterior_price', 'package_interior_price'])
+    const priceMap: Record<string, string> = {}
+    priceRows?.forEach((r: any) => { priceMap[r.key] = r.value })
+    const monthly = pkgType === 'ultimate_exterior'
+      ? (Number(priceMap['package_exterior_price']) || 500)
+      : (Number(priceMap['package_interior_price']) || 800)
+    const serverAmount = Math.round(monthly * (days / 30) * 100) / 100
+    if (amount !== undefined && Math.abs(Number(amount) - serverAmount) > 0.01) {
+      console.warn('Client amount differs from server price', { amount, serverAmount })
+    }
+
     const { data: order, error } = await supabase
       .from('package_orders')
       .insert({
         site_id: site_id || null,
-        package_type: package_type || 'ultimate_exterior',
-        duration_days: duration_days || 30,
-        amount: amount || 0,
+        package_type: pkgType,
+        duration_days: days,
+        amount: serverAmount,
         vehicle_reg: vehicle_reg.toUpperCase().trim(),
         vehicle_make: vehicle_make || '',
         vehicle_colour: vehicle_colour || '',
@@ -93,7 +112,7 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       // Send customers back to whichever site they bought from (Vercel, custom domain, etc.)
       // APP_URL secret overrides; otherwise use the browser's Origin header.
-      const appUrl = (Deno.env.get('APP_URL') || req.headers.get('origin') || 'https://codepos.lovable.app').replace(/\/$/, '')
+      const appUrl = (Deno.env.get('APP_URL') || req.headers.get('origin') || 'https://codepos.vercel.app').replace(/\/$/, '')
 
       const pfData: Record<string, string> = {
         merchant_id: settingsMap['payfast_merchant_id'],

@@ -1,1 +1,21 @@
-project_id = "tiygtawyhvptqvzvtxfw"
+project_id = "kksegdssydjfngyztwod"
+
+# Called by browsers with the anon key
+[functions.validate-code]
+verify_jwt = true
+[functions.validate-plate]
+verify_jwt = true
+[functions.create-package-order]
+verify_jwt = true
+[functions.activate-package-order]
+verify_jwt = true
+[functions.recognize-plate]
+verify_jwt = true
+
+# Called by external servers/devices without a JWT (own security checks inside)
+[functions.payfast-itn]
+verify_jwt = false
+[functions.alpr-webhook]
+verify_jwt = false
+[functions.validate-package-code]
+verify_jwt = false

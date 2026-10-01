@@ -5,12 +5,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    // SECURITY: only approved staff may manually activate an order
+    const authClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const { data: userData } = await authClient.auth.getUser(token)
+    const userId = userData?.user?.id
+    if (!userId) return json({ error: 'Not signed in' }, 401)
+    const { data: profile } = await authClient.from('profiles').select('approved').eq('id', userId).maybeSingle()
+    if (!profile?.approved) return json({ error: 'Not authorised' }, 403)
+
     const { order_id } = await req.json()
 
     if (!order_id) {
