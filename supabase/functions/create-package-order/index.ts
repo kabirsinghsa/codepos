@@ -91,7 +91,9 @@ Deno.serve(async (req) => {
         : 'https://www.payfast.co.za/eng/process'
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-      const appUrl = 'https://codepos.lovable.app'
+      // Send customers back to whichever site they bought from (Vercel, custom domain, etc.)
+      // APP_URL secret overrides; otherwise use the browser's Origin header.
+      const appUrl = (Deno.env.get('APP_URL') || req.headers.get('origin') || 'https://codepos.lovable.app').replace(/\/$/, '')
 
       const pfData: Record<string, string> = {
         merchant_id: settingsMap['payfast_merchant_id'],
