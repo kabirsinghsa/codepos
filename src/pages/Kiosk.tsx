@@ -167,8 +167,15 @@ const Kiosk = () => {
   useEffect(() => {
     if (bayState.status === 'washing' && siteConfig) {
       const timer = setTimeout(async () => {
-        // Kiosk can only reset the bay to idle (secured RPC), never start a wash directly
-        await supabase.rpc('reset_bay_idle', { p_bay_id: siteConfig.id });
+        // Preferred: secured RPC that can only reset the bay to idle.
+        // Fallback: direct update, for databases where the security migration
+        // hasn't been applied yet (keeps the kiosk working either way).
+        const { error: rpcError } = await supabase.rpc('reset_bay_idle', { p_bay_id: siteConfig.id });
+        if (rpcError) {
+          await supabase.from('wash_bay_status').update({
+            status: 'idle', current_wash_type: null, current_code: null, started_at: null, updated_at: new Date().toISOString(),
+          }).eq('id', siteConfig.id);
+        }
       }, 10000);
       return () => clearTimeout(timer);
     }
