@@ -300,7 +300,7 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-lg font-bold uppercase tracking-tight">{siteName || businessName}</h1>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{siteName ? businessName : 'Command Center'}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Command Center</p>
               </div>
             </div>
 

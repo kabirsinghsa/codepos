@@ -268,9 +268,11 @@ const Kiosk = () => {
         )}
 
         <div className="flex justify-center gap-2 -mt-4">
-          <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
-            {dbSiteName ? businessName : siteConfig.name}
-          </span>
+          {!dbSiteName && (
+            <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
+              {siteConfig.name}
+            </span>
+          )}
           <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
             BAY {siteConfig.id}
           </span>
