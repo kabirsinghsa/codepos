@@ -16,6 +16,6 @@ CREATE POLICY "Approved users can update business_settings"
   WITH CHECK (is_approved(auth.uid()));
 
 INSERT INTO public.business_settings (key, value) VALUES
-  ('business_name', 'BULLDOG CARWASH'),
+  ('business_name', 'GES CODE CONTROLLER'),
   ('business_phone', '000-000-0000'),
   ('receipt_footer', 'Scan QR code at the wash bay to start.');

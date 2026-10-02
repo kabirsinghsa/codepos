@@ -63,9 +63,9 @@ const Index = () => {
   const [price, setPrice] = useState<number>(0);
   const [dbPrices, setDbPrices] = useState<Record<string, Record<string, number>>>({});
   const [businessPhone, setBusinessPhone] = useState('000-000-0000');
-  const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
   const [receiptFooter, setReceiptFooter] = useState('Scan QR code at the wash bay to start.');
-  const [posReceiptHeader, setPosReceiptHeader] = useState('BULLDOG POS RECEIPT');
+  const [posReceiptHeader, setPosReceiptHeader] = useState('GES CODE CONTROLLER');
   const [posReceiptFooter, setPosReceiptFooter] = useState('Thank you for your purchase!');
 
   const [showSettings, setShowSettings] = useState(false);

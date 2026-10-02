@@ -38,7 +38,7 @@ const BuyPackage = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
   const payfastFormRef = useRef<HTMLFormElement>(null);
 
   const [exteriorPrice, setExteriorPrice] = useState(500);

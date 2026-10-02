@@ -67,7 +67,7 @@ const Install = () => {
         </head>
         <body>
           <div class="container">
-            <h1>BULLDOG CARWASH</h1>
+            <h1>GES CODE CONTROLLER</h1>
             <p>${link.subtitle}</p>
             <div id="qr-target" class="qr-placeholder"></div>
             <div class="url">${link.url}</div>

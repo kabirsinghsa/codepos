@@ -29,7 +29,7 @@ const Pos = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
   const [businessPhone, setBusinessPhone] = useState('');
   const [siteName, setSiteName] = useState('');
   const [lastReceipt, setLastReceipt] = useState<{ items: BasketItem[]; total: number; date: Date; txId: string } | null>(null);

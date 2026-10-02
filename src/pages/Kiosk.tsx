@@ -27,7 +27,7 @@ const statusConfig: Record<BayStatus, { icon: React.ReactNode; title: string; su
 
 const Kiosk = () => {
   const [searchParams] = useSearchParams();
-  const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
+  const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
 
   const [dbSiteName, setDbSiteName] = useState<string | null>(null);
   const [siteMissing, setSiteMissing] = useState(false);
