@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { format, getDaysInMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { FileText, ArrowLeft, TrendingUp, MapPin, ShoppingCart, CheckCircle2, ShieldCheck, Tag, Globe, Store, Lock, Download } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -68,16 +68,19 @@ const Reports = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    let start, end;
+    // Use the phone's local time (e.g. SAST) so a day runs 00:00-23:59 local, not UTC
+    let startD: Date, endD: Date;
     if (viewMode === 'daily') {
-      start = `${date}T00:00:00.000Z`;
-      end = `${date}T23:59:59.999Z`;
+      const [y, m, d] = date.split('-').map(Number);
+      startD = new Date(y, m - 1, d, 0, 0, 0, 0);
+      endD = new Date(y, m - 1, d, 23, 59, 59, 999);
     } else {
       const [year, mon] = month.split('-').map(Number);
-      start = `${month}-01T00:00:00.000Z`;
-      const lastDay = getDaysInMonth(new Date(year, mon - 1));
-      end = `${month}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
+      startD = new Date(year, mon - 1, 1, 0, 0, 0, 0);
+      endD = new Date(year, mon, 0, 23, 59, 59, 999);
     }
+    const start = startD.toISOString();
+    const end = endD.toISOString();
 
     const [codesRes, logsRes, posRes] = await Promise.all([
       supabase.from('wash_codes').select('*').gte('created_at', start).lte('created_at', end).order('created_at', { ascending: false }),
@@ -93,48 +96,31 @@ const Reports = () => {
 
   useEffect(() => { fetchData(); }, [date, month, viewMode]);
 
+  // One card per real site (from the Sites page), plus "No site" only if something wasn't assigned
   const statsBySite = useMemo(() => {
-    const siteData: Record<string, { id: string | null; codes: number; packages: number; washRevenue: number; posRevenue: number }> = {
-      'HEAD OFFICE': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
-      'HUDDLE': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 },
-      'BOKSBURG': { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 }
+    type Stat = { id: string | null; codes: number; packages: number; washRevenue: number; posRevenue: number };
+    const NO_SITE = '__none__';
+    const byId: Record<string, Stat> = {};
+    sites.forEach(s => { byId[s.id] = { id: s.id, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 }; });
+    const bucket = (siteId: string | null | undefined) => {
+      const key = siteId && byId[siteId] ? siteId : NO_SITE;
+      if (!byId[key]) byId[key] = { id: null, codes: 0, packages: 0, washRevenue: 0, posRevenue: 0 };
+      return byId[key];
     };
 
-    sites.forEach(s => {
-      if (siteData[s.name.toUpperCase()]) {
-        siteData[s.name.toUpperCase()].id = s.id;
-      }
-    });
-
-    codes.forEach(c => {
-      const matchedSite = sites.find(s => s.id === c.site_id);
-      const siteName = matchedSite ? matchedSite.name.toUpperCase() : 'HEAD OFFICE';
-      if (siteData[siteName]) {
-        siteData[siteName].codes++;
-        siteData[siteName].washRevenue += Number(c.price);
-      }
-    });
-
+    codes.forEach(c => { const b = bucket(c.site_id); b.codes++; b.washRevenue += Number(c.price); });
     packageLogs.forEach(p => {
-      const siteName = (p.site_name || 'HEAD OFFICE').toUpperCase();
-      if (siteData[siteName]) {
-        siteData[siteName].packages++;
-      }
+      const sid = (p as any).site_id || sites.find(s => s.name.toUpperCase() === (p.site_name || '').toUpperCase())?.id;
+      bucket(sid).packages++;
     });
+    posTransactions.forEach(t => { bucket(t.site_id).posRevenue += Number(t.total); });
 
-    posTransactions.forEach(t => {
-      const matchedSite = sites.find(s => s.id === t.site_id);
-      const siteName = matchedSite ? matchedSite.name.toUpperCase() : 'HEAD OFFICE';
-      if (siteData[siteName]) {
-        siteData[siteName].posRevenue += Number(t.total);
-      }
-    });
-
-    let results = Object.entries(siteData);
+    let results = Object.entries(byId)
+      .filter(([key, d]) => key !== NO_SITE || d.codes + d.packages + d.posRevenue > 0)
+      .map(([key, d]) => [key === NO_SITE ? 'NO SITE' : (sites.find(s => s.id === key)?.name || 'UNKNOWN').toUpperCase(), d] as [string, Stat]);
     if (!isAdmin && userSiteId) {
       results = results.filter(([_, data]) => data.id === userSiteId);
     }
-
     return results;
   }, [codes, packageLogs, posTransactions, sites, isAdmin, userSiteId]);
 
@@ -146,16 +132,16 @@ const Reports = () => {
     let csv = 'Site,Type,Reference,Value,Timestamp\n';
 
     codes.forEach(c => {
-      const sName = sites.find(s => s.id === c.site_id)?.name || 'Head Office';
+      const sName = sites.find(s => s.id === c.site_id)?.name || 'No site';
       csv += `${sName},Wash Code,${c.code},${c.price},${format(new Date(c.created_at), 'yyyy-MM-dd HH:mm')}\n`;
     });
 
     packageLogs.forEach(p => {
-      csv += `${p.site_name || 'Head Office'},Package Wash,${p.vehicle_reg},0,${format(new Date(p.washed_at), 'yyyy-MM-dd HH:mm')}\n`;
+      csv += `${p.site_name || 'No site'},Package Wash,${p.vehicle_reg},0,${format(new Date(p.washed_at), 'yyyy-MM-dd HH:mm')}\n`;
     });
 
     posTransactions.forEach(t => {
-      const sName = sites.find(s => s.id === t.site_id)?.name || 'Head Office';
+      const sName = sites.find(s => s.id === t.site_id)?.name || 'No site';
       csv += `${sName},Shop Sale,${t.id.slice(0,8)},${t.total},${format(new Date(t.created_at), 'yyyy-MM-dd HH:mm')}\n`;
     });
 
@@ -265,7 +251,8 @@ const Reports = () => {
             <MapPin className="w-4 h-4 text-primary" />
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Regional Performance Cards</h2>
           </div>
-          <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'max-w-md mx-auto'} gap-6`}>
+          {statsBySite.length === 0 && <p className="text-sm text-muted-foreground px-1">No sites yet. Create one on the Sites page.</p>}
+          <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-2 xl:grid-cols-3' : 'max-w-md mx-auto'} gap-6`}>
             {statsBySite.map(([name, data]) => (
               <Card key={name} className="overflow-hidden border-2 border-border shadow-xl rounded-[2rem] group hover:border-primary/40 transition-all duration-500 bg-card">
                 <CardHeader className="bg-muted/30 pb-4 border-b">

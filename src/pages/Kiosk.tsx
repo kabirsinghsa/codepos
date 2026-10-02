@@ -42,12 +42,7 @@ const Kiosk = () => {
     const idNum = parseInt(rawId);
     let name = rawName?.toUpperCase();
 
-    if (!name) {
-      if (idNum === 1) name = 'HEAD OFFICE';
-      else if (idNum === 2) name = 'HUDDLE';
-      else if (idNum === 3) name = 'BOKSBURG';
-      else name = 'UNKNOWN SITE';
-    }
+    if (!name) name = `BAY ${idNum}`;
 
     return { id: idNum, name: dbSiteName ? dbSiteName.toUpperCase() : name };
   }, [searchParams, dbSiteName]);
