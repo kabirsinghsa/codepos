@@ -31,6 +31,13 @@ Deno.serve(async (req) => {
       customer_phone,
     } = await req.json()
 
+    if (!site_id) {
+      return new Response(
+        JSON.stringify({ error: 'Please choose a site for the package' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (!vehicle_reg || !customer_email || !customer_phone) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),

@@ -14,6 +14,19 @@ const washTypeToRelay: Record<string, string> = {
   ultimate_interior: 'ultimate',
 }
 
+// Resolve the kiosk bay number to its site, plus the sites linked to it.
+async function getSiteAccess(supabase: any, bayId: number) {
+  const { data: site } = await supabase
+    .from('sites').select('id, name, active').eq('bay_id', bayId).maybeSingle()
+  if (!site) return null
+  const { data: links } = await supabase
+    .from('site_links').select('site_id, linked_site_id')
+    .or(`site_id.eq.${site.id},linked_site_id.eq.${site.id}`)
+  const linked = new Set<string>()
+  links?.forEach((l: any) => linked.add(l.site_id === site.id ? l.linked_site_id : l.site_id))
+  return { site, linked }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -102,36 +115,22 @@ Deno.serve(async (req) => {
 
     // Find active package for this plate
     // Try exact match first, then try without spaces
-    const now = new Date().toISOString()
-    let pkg = null
+    const access = await getSiteAccess(supabase, targetBayId)
+    if (!access) return json({ valid: false, error: `Bay ${targetBayId} is not linked to a site` }, 404)
 
-    const { data: exactMatch } = await supabase
+    const now = new Date().toISOString()
+    const { data: allActive } = await supabase
       .from('wash_packages')
       .select('*')
-      .eq('vehicle_reg', cleanPlate)
       .eq('active', true)
       .gt('end_date', now)
       .lte('start_date', now)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
 
-    if (exactMatch) {
-      pkg = exactMatch
-    } else {
-      // Try matching without spaces (cameras may send plates without spaces)
-      const noSpacePlate = cleanPlate.replace(/\s/g, '')
-      const { data: allActive } = await supabase
-        .from('wash_packages')
-        .select('*')
-        .eq('active', true)
-        .gt('end_date', now)
-        .lte('start_date', now)
-
-      if (allActive) {
-        pkg = allActive.find(p => p.vehicle_reg.replace(/\s/g, '') === noSpacePlate) || null
-      }
-    }
+    const noSpacePlate = cleanPlate.replace(/\s/g, '')
+    const allowedHere = (p: any) => p.site_id === access.site.id || (p.site_id && access.linked.has(p.site_id))
+    const matches = (allActive || []).filter((p: any) => p.vehicle_reg.replace(/\s/g, '') === noSpacePlate)
+    const pkg = matches.find(allowedHere) || null
 
     if (!pkg) {
       console.log(`[ALPR] No active package for plate: ${cleanPlate}`)
@@ -170,7 +169,8 @@ Deno.serve(async (req) => {
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
       wash_type: pkg.wash_type,
-      site_name: site_name || `Bay ${targetBayId} (ALPR)`,
+      site_name: access.site.name,
+      site_id: access.site.id,
     })
 
     console.log(`[ALPR] SUCCESS - ${cleanPlate} → Bay ${targetBayId} (${relayWashType})`)

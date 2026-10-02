@@ -5,6 +5,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// Resolve the kiosk bay number to its site, plus the sites linked to it.
+async function getSiteAccess(supabase: any, bayId: number) {
+  const { data: site } = await supabase
+    .from('sites').select('id, name, active').eq('bay_id', bayId).maybeSingle()
+  if (!site) return null
+  const { data: links } = await supabase
+    .from('site_links').select('site_id, linked_site_id')
+    .or(`site_id.eq.${site.id},linked_site_id.eq.${site.id}`)
+  const linked = new Set<string>()
+  links?.forEach((l: any) => linked.add(l.site_id === site.id ? l.linked_site_id : l.site_id))
+  return { site, linked }
+}
+
 async function getMasterSiteUrl(supabase: any): Promise<string | null> {
   const { data } = await supabase
     .from('business_settings')
@@ -66,14 +79,35 @@ Deno.serve(async (req) => {
     )
 
     // Look up the code locally first
-    const { data: washCode, error: fetchError } = await supabase
+    const access = await getSiteAccess(supabase, targetBayId)
+    if (!access) {
+      return new Response(
+        JSON.stringify({ valid: false, error: `Kiosk bay ${targetBayId} is not linked to a site. Check the kiosk URL.` }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (access.site.active === false) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'This site is currently inactive' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Codes are 6 digits, so different sites may issue the same number: fetch candidates and pick the right one
+    const { data: candidates, error: fetchError } = await supabase
       .from('wash_codes')
       .select('*')
       .eq('code', code)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .limit(20)
+
+    // Single-wash codes only work at the site that issued them.
+    // Multi-wash (package) codes also work at sites linked to the issuing site.
+    const usable = (c: any) => c.site_id === access.site.id ||
+      ((c.total_washes || 1) > 1 && c.site_id && access.linked.has(c.site_id))
+    const washCode = (candidates || []).find(usable) || null
+    const issuedElsewhere = !washCode && (candidates || []).length > 0
 
     if (fetchError) {
       return new Response(
@@ -86,6 +120,13 @@ Deno.serve(async (req) => {
     const uniqueWashId = `${code}-${Date.now()}`;
 
     // If not found locally, try the master site for package codes
+    if (issuedElsewhere) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'This code was issued at another site and is not valid here' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (!washCode) {
       const masterUrl = await getMasterSiteUrl(supabase)
       if (masterUrl) {

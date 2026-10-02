@@ -36,7 +36,23 @@ const plcInputMap: Record<WashType, number> = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const { signOut, isAdmin, siteId } = useAuth();
+  const { signOut, isAdmin, siteId: profileSiteId } = useAuth();
+  // Staff use the site on their profile. Admins without a site pick which site they're selling for.
+  const [adminSiteId, setAdminSiteId] = useState<string | null>(() => {
+    try { return localStorage.getItem('codepos_admin_site'); } catch { return null; }
+  });
+  const [allSites, setAllSites] = useState<{ id: string; name: string }[]>([]);
+  const siteId = profileSiteId || adminSiteId;
+  const chooseAdminSite = (id: string) => {
+    setAdminSiteId(id || null);
+    try { id ? localStorage.setItem('codepos_admin_site', id) : localStorage.removeItem('codepos_admin_site'); } catch { /* ignore */ }
+  };
+  useEffect(() => {
+    if (isAdmin && !profileSiteId) {
+      supabase.from('sites').select('id, name').eq('active', true).order('name')
+        .then(({ data }) => setAllSites(data || []));
+    }
+  }, [isAdmin, profileSiteId]);
   const [codes, setCodes] = useState<WashCode[]>([]);
   const [selectedWash, setSelectedWash] = useState<WashType>('basic');
   const [selectedVehicle, setSelectedVehicle] = useState('small_medium');
@@ -96,6 +112,8 @@ const Index = () => {
       if (siteId) {
         const { data } = await supabase.from('sites').select('name').eq('id', siteId).single();
         if (data) setSiteName(data.name);
+      } else {
+        setSiteName('');
       }
     };
     fetchSiteName();
@@ -108,8 +126,8 @@ const Index = () => {
         .select('*', { count: 'exact', head: true })
         .eq('active', true)
         .gte('end_date', new Date().toISOString());
-      // Include packages assigned to this site OR unassigned (cross-site valid)
-      if (siteId) query = query.or(`site_id.eq.${siteId},site_id.is.null`);
+      // Packages belonging to this site
+      if (siteId) query = query.eq('site_id', siteId);
       const { count } = await query;
       setActivePackagesCount(count || 0);
     };
@@ -192,6 +210,12 @@ const Index = () => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + (isMultiWash ? multiWashDays : expiryDays));
       const finalPrice = isMultiWash ? totalPrice * washQuantity : totalPrice;
+      if (!siteId) {
+        toast.error(isAdmin
+          ? 'Choose a site first. Codes only work at the site that sold them.'
+          : 'Your account has no site. Ask an admin to assign one on the Users page.');
+        return;
+      }
       const newCode = createWashCode(selectedWash, expiresAt, codes, customerPhone.trim(), finalPrice);
 
       const selectedExtrasList = extras.filter(e => selectedExtras.has(e.id)).map(e => ({ name: e.name, price: e.price }));
@@ -223,7 +247,7 @@ const Index = () => {
     } finally {
       setGenerating(false);
     }
-  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId, extras, selectedExtras, multiWashDays, selectedVehicle, fetchCodes]);
+  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId, extras, selectedExtras, multiWashDays, selectedVehicle, fetchCodes, isAdmin]);
 
   const handleMarkUsed = useCallback(async (id: string) => {
     const code = codes.find((c) => c.id === id);
@@ -275,8 +299,8 @@ const Index = () => {
                 <Droplets className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-lg font-bold uppercase tracking-tight">{businessName}</h1>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Command Center</p>
+                <h1 className="text-lg font-bold uppercase tracking-tight">{siteName || businessName}</h1>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{siteName ? businessName : 'Command Center'}</p>
               </div>
             </div>
 
@@ -292,6 +316,21 @@ const Index = () => {
               </button>
             </div>
           </div>
+
+          {isAdmin && !profileSiteId && (
+            <div className="mt-3 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary shrink-0" />
+              <select
+                value={adminSiteId || ''}
+                onChange={e => chooseAdminSite(e.target.value)}
+                className="flex-1 h-10 rounded-xl bg-secondary border border-border px-3 text-sm font-semibold"
+                aria-label="Site you are selling for"
+              >
+                <option value="">Choose site to sell for…</option>
+                {allSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Stat counters — visible on all screens */}
           <div className="flex gap-3 mt-3">

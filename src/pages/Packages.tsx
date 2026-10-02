@@ -41,7 +41,14 @@ const DURATION_OPTIONS = [
 
 const Packages = () => {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, siteId: mySiteId } = useAuth();
+  const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
+  const [pkgSiteId, setPkgSiteId] = useState<string>('');
+  useEffect(() => {
+    supabase.from('sites').select('id, name').order('name').then(({ data }) => setSites(data || []));
+  }, []);
+  useEffect(() => { if (mySiteId && !pkgSiteId) setPkgSiteId(mySiteId); }, [mySiteId, pkgSiteId]);
+  const siteNameOf = (id?: string | null) => sites.find(x => x.id === id)?.name || 'No site';
   const [packages, setPackages] = useState<WashPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -60,7 +67,7 @@ const Packages = () => {
 
   // Edit state
   const [editPkg, setEditPkg] = useState<WashPackage | null>(null);
-  const [editForm, setEditForm] = useState({ vehicle_reg: '', vehicle_make: '', vehicle_colour: '', customer_phone: '', wash_type: '', price: '', end_date: '', active: true });
+  const [editForm, setEditForm] = useState({ vehicle_reg: '', vehicle_make: '', vehicle_colour: '', customer_phone: '', wash_type: '', price: '', end_date: '', active: true, site_id: '' });
   const [saving, setSaving] = useState(false);
 
   // Delete confirm state
@@ -103,6 +110,7 @@ const Packages = () => {
 
   const handleCreate = async () => {
     if (!vehicleReg.trim()) { toast.error('Registration number is required'); return; }
+    if (!pkgSiteId) { toast.error('Choose the site this package belongs to'); return; }
     setCreating(true);
     try {
       const endDate = new Date();
@@ -116,6 +124,7 @@ const Packages = () => {
         price: totalPrice,
         start_date: new Date().toISOString(),
         end_date: endDate.toISOString(),
+        site_id: pkgSiteId,
       } as any);
       if (error) throw error;
       toast.success(`Package created for ${vehicleReg.toUpperCase()}`);
@@ -137,6 +146,7 @@ const Packages = () => {
       price: String(pkg.price),
       end_date: endLocal,
       active: pkg.active,
+      site_id: (pkg as any).site_id || '',
     });
     setEditPkg(pkg);
   };
@@ -156,6 +166,7 @@ const Packages = () => {
           price: Number(editForm.price),
           end_date: new Date(editForm.end_date).toISOString(),
           active: editForm.active,
+          site_id: editForm.site_id || null,
           updated_at: new Date().toISOString(),
         } as any)
         .eq('id', editPkg.id);
@@ -241,6 +252,15 @@ const Packages = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Site *</label>
+              <select value={pkgSiteId} onChange={e => setPkgSiteId(e.target.value)} disabled={!!mySiteId && !isAdmin}
+                className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-sm">
+                <option value="">Choose site…</option>
+                {sites.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Works at this site, and at any sites linked to it on the Sites page.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Registration Number *</label>
@@ -308,6 +328,7 @@ const Packages = () => {
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
+                        <p>📍 {siteNameOf((pkg as any).site_id)}</p>
                         {pkg.vehicle_make && <p>{pkg.vehicle_make} — {pkg.vehicle_colour}</p>}
                         <p>{getPackageLabel(pkg.wash_type)} • R{Number(pkg.price).toFixed(2)}</p>
                         <p className="text-xs font-medium text-primary">♾️ Unlimited washes included</p>
@@ -341,6 +362,14 @@ const Packages = () => {
             <DialogTitle>Edit Package</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Site</label>
+              <select value={editForm.site_id} onChange={e => setEditForm(f => ({ ...f, site_id: e.target.value }))}
+                className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-sm">
+                <option value="">No site (won't work at any kiosk)</option>
+                {sites.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Registration</label>
               <Input value={editForm.vehicle_reg} onChange={e => setEditForm(f => ({ ...f, vehicle_reg: e.target.value }))} className="font-mono uppercase bg-secondary border-border" />

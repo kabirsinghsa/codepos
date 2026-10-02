@@ -29,6 +29,9 @@ const Kiosk = () => {
   const [searchParams] = useSearchParams();
   const [businessName, setBusinessName] = useState('BULLDOG CARWASH');
 
+  const [dbSiteName, setDbSiteName] = useState<string | null>(null);
+  const [siteMissing, setSiteMissing] = useState(false);
+
   const siteConfig = useMemo(() => {
     const rawId = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
     const rawName = searchParams.get('site') || searchParams.get('Site');
@@ -45,8 +48,20 @@ const Kiosk = () => {
       else name = 'UNKNOWN SITE';
     }
 
-    return { id: idNum, name };
-  }, [searchParams]);
+    return { id: idNum, name: dbSiteName ? dbSiteName.toUpperCase() : name };
+  }, [searchParams, dbSiteName]);
+
+  // Look up the site that owns this kiosk bay number
+  const bayParam = searchParams.get('site_id') || searchParams.get('siteId') || searchParams.get('id');
+  useEffect(() => {
+    const n = parseInt(bayParam || '');
+    if (!n) return;
+    (supabase as any).from('sites').select('name').eq('bay_id', n).maybeSingle()
+      .then(({ data }: any) => {
+        if (data?.name) { setDbSiteName(data.name); setSiteMissing(false); }
+        else setSiteMissing(true);
+      });
+  }, [bayParam]);
 
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -232,8 +247,8 @@ const Kiosk = () => {
         <p className="text-muted-foreground mb-6 max-w-sm">This tablet is missing its Site ID configuration in the URL.</p>
         <div className="p-6 bg-muted rounded-2xl font-mono text-xs text-left border-2 border-border shadow-inner">
           <p className="font-black text-primary mb-2 tracking-widest uppercase">Required link parameters:</p>
-          <strong>Huddle:</strong> /kiosk?site=Huddle&site_id=2<br/>
-          <strong>Boksburg:</strong> /kiosk?site=Boksburg&site_id=3
+          /kiosk?site_id=BAY_NUMBER<br/>
+          <span className="text-muted-foreground">Find each site's kiosk link on the Sites page.</span>
         </div>
       </div>
     );
@@ -247,11 +262,14 @@ const Kiosk = () => {
   return (
     <div className={`min-h-screen bg-gradient-to-b ${currentConfig.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
-        <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{businessName}</h1>
+        <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{dbSiteName || businessName}</h1>
+        {siteMissing && (
+          <p className="text-sm font-bold text-destructive">No site uses bay {siteConfig.id}. Check this kiosk link on the Sites page.</p>
+        )}
 
         <div className="flex justify-center gap-2 -mt-4">
           <span className="px-4 py-1.5 bg-card text-foreground text-sm font-bold rounded-full border border-border shadow-sm uppercase">
-            {siteConfig.name}
+            {dbSiteName ? businessName : siteConfig.name}
           </span>
           <span className={`px-4 py-1.5 text-white text-sm font-black rounded-full shadow-md ${siteConfig.id === 1 ? 'bg-blue-600' : siteConfig.id === 2 ? 'bg-orange-600' : 'bg-purple-600'}`}>
             BAY {siteConfig.id}

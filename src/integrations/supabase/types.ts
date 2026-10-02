@@ -319,10 +319,17 @@ export type Database = {
           },
         ]
       }
+      site_links: {
+        Row: { created_at: string; linked_site_id: string; site_id: string }
+        Insert: { created_at?: string; linked_site_id: string; site_id: string }
+        Update: { created_at?: string; linked_site_id?: string; site_id?: string }
+        Relationships: []
+      }
       sites: {
         Row: {
           active: boolean
           address: string
+          bay_id: number | null
           created_at: string
           id: string
           name: string
@@ -332,6 +339,7 @@ export type Database = {
         Insert: {
           active?: boolean
           address?: string
+          bay_id?: number | null
           created_at?: string
           id?: string
           name: string
@@ -341,6 +349,7 @@ export type Database = {
         Update: {
           active?: boolean
           address?: string
+          bay_id?: number | null
           created_at?: string
           id?: string
           name?: string
@@ -578,6 +587,7 @@ export type Database = {
       }
       is_approved: { Args: { user_id: string }; Returns: boolean }
       reset_bay_idle: { Args: { p_bay_id: number }; Returns: undefined }
+      sites_are_linked: { Args: { home_site: string; target_site: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user" | "site_manager"

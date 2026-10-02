@@ -14,6 +14,19 @@ const washTypeToRelay: Record<string, string> = {
   ultimate_interior: 'ultimate',
 }
 
+// Resolve the kiosk bay number to its site, plus the sites linked to it.
+async function getSiteAccess(supabase: any, bayId: number) {
+  const { data: site } = await supabase
+    .from('sites').select('id, name, active').eq('bay_id', bayId).maybeSingle()
+  if (!site) return null
+  const { data: links } = await supabase
+    .from('site_links').select('site_id, linked_site_id')
+    .or(`site_id.eq.${site.id},linked_site_id.eq.${site.id}`)
+  const linked = new Set<string>()
+  links?.forEach((l: any) => linked.add(l.site_id === site.id ? l.linked_site_id : l.site_id))
+  return { site, linked }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -40,20 +53,28 @@ Deno.serve(async (req) => {
     )
 
     // 2. Find active package
-    const { data: pkg, error } = await supabase
+    const access = await getSiteAccess(supabase, targetBayId)
+    if (!access) {
+      return new Response(JSON.stringify({ valid: false, error: `Kiosk bay ${targetBayId} is not linked to a site` }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    const now = new Date().toISOString()
+    const { data: pkgs, error } = await supabase
       .from('wash_packages')
       .select('*')
       .eq('vehicle_reg', cleanPlate)
       .eq('active', true)
-      .gt('end_date', new Date().toISOString())
-      .lte('start_date', new Date().toISOString())
+      .gt('end_date', now)
+      .lte('start_date', now)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+
+    // Packages only work at their own site, or at sites an admin has linked to it
+    const pkg = (pkgs || []).find((p: any) => p.site_id === access.site.id || (p.site_id && access.linked.has(p.site_id))) || null
 
     if (error || !pkg) {
-      console.log(`[FAILED] No package for plate: ${cleanPlate}`)
-      return new Response(JSON.stringify({ valid: false, error: 'No active package found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const elsewhere = (pkgs || []).length > 0
+      console.log(`[FAILED] No usable package for plate: ${cleanPlate} at ${access.site.name}`)
+      return new Response(JSON.stringify({ valid: false, error: elsewhere ? 'This package belongs to another site and is not valid here' : 'No active package found' }), { status: elsewhere ? 403 : 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const relayWashType = washTypeToRelay[pkg.wash_type] || 'ultimate'
@@ -82,7 +103,8 @@ Deno.serve(async (req) => {
       package_id: pkg.id,
       vehicle_reg: cleanPlate,
       wash_type: pkg.wash_type,
-      site_name: site_name || `Bay ${targetBayId}`,
+      site_name: access.site.name,
+      site_id: access.site.id,
     })
 
     return new Response(

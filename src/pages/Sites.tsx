@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -17,7 +17,10 @@ interface Site {
   phone: string;
   active: boolean;
   created_at: string;
+  bay_id: number | null;
 }
+
+interface SiteLink { site_id: string; linked_site_id: string; }
 
 const Sites = () => {
   const navigate = useNavigate();
@@ -30,6 +33,8 @@ const Sites = () => {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [links, setLinks] = useState<SiteLink[]>([]);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const canManageAll = isAdmin;
   const canEditOwn = isSiteManager && !!siteId;
@@ -48,10 +53,35 @@ const Sites = () => {
     const { data, error } = await query;
     if (error) toast.error('Failed to load sites');
     else setSites((data as any[]) || []);
+    const { data: linkData } = await (supabase as any).from('site_links').select('site_id, linked_site_id');
+    setLinks(linkData || []);
     setLoading(false);
   }, [canManageAll, canEditOwn, siteId]);
 
   useEffect(() => { fetchSites(); }, [fetchSites]);
+
+  const isLinked = (a: string, b: string) =>
+    links.some(l => (l.site_id === a && l.linked_site_id === b) || (l.site_id === b && l.linked_site_id === a));
+
+  const linkedNames = (id: string) =>
+    sites.filter(s => s.id !== id && isLinked(id, s.id)).map(s => s.name);
+
+  const toggleLink = async (a: string, b: string) => {
+    if (isLinked(a, b)) {
+      const { error } = await (supabase as any).from('site_links').delete()
+        .or(`and(site_id.eq.${a},linked_site_id.eq.${b}),and(site_id.eq.${b},linked_site_id.eq.${a})`);
+      if (error) { toast.error('Failed to unlink sites'); return; }
+      setLinks(prev => prev.filter(l => !((l.site_id === a && l.linked_site_id === b) || (l.site_id === b && l.linked_site_id === a))));
+      toast.success('Sites unlinked: packages no longer shared');
+    } else {
+      const { error } = await (supabase as any).from('site_links').insert({ site_id: a, linked_site_id: b });
+      if (error) { toast.error('Failed to link sites'); return; }
+      setLinks(prev => [...prev, { site_id: a, linked_site_id: b }]);
+      toast.success('Sites linked: packages now work at both');
+    }
+  };
+
+  const kioskUrl = (bay: number | null) => `${window.location.origin}/kiosk?site_id=${bay ?? ''}`;
 
   const resetForm = () => {
     setName('');
@@ -204,6 +234,19 @@ const Sites = () => {
                     <div className="text-sm text-muted-foreground space-y-1">
                       {site.address && <p>📍 {site.address}</p>}
                       {site.phone && <p>📞 {site.phone}</p>}
+                      {site.bay_id && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-xs font-bold text-foreground">Bay {site.bay_id}</span>
+                          <code className="text-[11px] bg-muted px-2 py-0.5 rounded truncate">{kioskUrl(site.bay_id)}</code>
+                          <button type="button" aria-label="Copy kiosk link" className="p-1 rounded hover:bg-muted"
+                            onClick={() => { navigator.clipboard?.writeText(kioskUrl(site.bay_id)); toast.success('Kiosk link copied'); }}>
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs">
+                        🔗 Packages shared with: {linkedNames(site.id).length ? linkedNames(site.id).join(', ') : 'no other sites'}
+                      </p>
                     </div>
                     <div className="flex gap-2">
                       {(canManageAll || site.id === siteId) && (
@@ -213,6 +256,10 @@ const Sites = () => {
                       )}
                       {canManageAll && (
                         <>
+                          <Button variant={linkingId === site.id ? 'default' : 'outline'} size="sm" className="gap-1"
+                            onClick={() => setLinkingId(linkingId === site.id ? null : site.id)}>
+                            <Link2 className="w-3 h-3" /> Link sites
+                          </Button>
                           <Button variant="outline" size="sm" className="gap-1" onClick={() => handleToggleActive(site)}>
                             {site.active ? 'Deactivate' : 'Activate'}
                           </Button>
@@ -222,6 +269,20 @@ const Sites = () => {
                         </>
                       )}
                     </div>
+                    {canManageAll && linkingId === site.id && (
+                      <div className="mt-2 p-3 rounded-xl border border-border bg-muted/30 space-y-2">
+                        <p className="text-xs text-muted-foreground">Linked sites accept each other's packages (plates and multi-wash codes). Single wash codes only work at the site that sold them.</p>
+                        {sites.filter(o => o.id !== site.id).length === 0 && <p className="text-xs">No other sites yet.</p>}
+                        {sites.filter(o => o.id !== site.id).map(o => (
+                          <div key={o.id} className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{o.name}</span>
+                            <Button size="sm" variant={isLinked(site.id, o.id) ? 'default' : 'outline'} onClick={() => toggleLink(site.id, o.id)}>
+                              {isLinked(site.id, o.id) ? 'Linked ✓' : 'Link'}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

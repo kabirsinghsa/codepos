@@ -69,7 +69,14 @@ const BuyPackage = () => {
         ]),
       ]);
 
-      if (sitesRes.data) setSites(sitesRes.data);
+      if (sitesRes.data) {
+        setSites(sitesRes.data);
+        // Pre-select the site when the link includes ?site_id=<bay number>
+        const bay = parseInt(new URLSearchParams(window.location.search).get('site_id') || '');
+        const match = (sitesRes.data as any[]).find(x => x.bay_id === bay);
+        if (match) setSiteId(match.id);
+        else if (sitesRes.data.length === 1) setSiteId(sitesRes.data[0].id);
+      }
       if (settingsRes.data) {
         settingsRes.data.forEach((row: any) => {
           if (row.key === 'business_name') setBusinessName(row.value);
@@ -90,6 +97,7 @@ const BuyPackage = () => {
   }, [payfastUrl]);
 
   const handleSubmitOrder = async () => {
+    if (!siteId) { toast.error('Choose the car wash site for your package'); setStep(1); return; }
     if (!vehicleReg.trim()) { toast.error('Registration number is required'); return; }
     if (!customerEmail.trim()) { toast.error('Email is required'); return; }
     if (!customerPhone.trim()) { toast.error('Phone number is required'); return; }
@@ -176,6 +184,16 @@ const BuyPackage = () => {
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Choose Your Package</h2>
+
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Car wash site *</label>
+              <select value={siteId} onChange={e => setSiteId(e.target.value)}
+                className="w-full h-11 rounded-md bg-secondary border border-border px-3 text-sm">
+                <option value="">Choose site…</option>
+                {sites.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">Your package works at this site.</p>
+            </div>
 
             <div className="space-y-3">
               {PACKAGE_TYPES.map((pkg) => (
