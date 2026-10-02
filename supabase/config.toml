@@ -19,3 +19,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.validate-package-code]
 verify_jwt = false
+[functions.bay-status]
+verify_jwt = false

@@ -57,12 +57,29 @@ const Kiosk = () => {
   useEffect(() => {
     const n = parseInt(bayParam || '');
     if (!n) return;
-    (supabase as any).from('sites').select('name').eq('bay_id', n).maybeSingle()
+    (supabase as any).from('sites').select('name, busy_input_enabled').eq('bay_id', n).maybeSingle()
       .then(({ data }: any) => {
-        if (data?.name) { setDbSiteName(data.name); setSiteMissing(false); }
+        if (data?.name) { setDbSiteName(data.name); setSiteMissing(false); setBusyInputEnabled(!!data.busy_input_enabled); }
         else setSiteMissing(true);
       });
   }, [bayParam]);
+
+  // Busy lock: machine still running from the previous car
+  const [lock, setLock] = useState<{ busy: boolean; busyAt: number; until: number; startedAt: number }>({ busy: false, busyAt: 0, until: 0, startedAt: 0 });
+  const [busyInputEnabled, setBusyInputEnabled] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowMs(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const lockFromRow = (d: any) => setLock({
+    busy: !!d.machine_busy,
+    busyAt: d.busy_updated_at ? Date.parse(d.busy_updated_at) : 0,
+    until: d.locked_until ? Date.parse(d.locked_until) : 0,
+    startedAt: d.last_started_at ? Date.parse(d.last_started_at) : 0,
+  });
+  const busySignalLive = busyInputEnabled && lock.busyAt > 0 && nowMs - lock.busyAt < 60_000;
+  const inGrace = lock.startedAt > 0 && nowMs - lock.startedAt < 30_000;
+  const bayLocked = inGrace || (busySignalLive ? lock.busy : lock.until > nowMs);
+  const waitSeconds = inGrace ? Math.ceil((30_000 - (nowMs - lock.startedAt)) / 1000)
+    : !busySignalLive && lock.until > nowMs ? Math.ceil((lock.until - nowMs) / 1000) : null;
 
   const [bayState, setBayState] = useState<BayState>({
     status: 'idle',
@@ -199,19 +216,20 @@ const Kiosk = () => {
 
   useEffect(() => {
     if (!siteConfig) return;
-    if (bayState.status === 'idle' && mode === 'code' && !scanning && !validating) {
+    if (bayState.status === 'idle' && !bayLocked && mode === 'code' && !scanning && !validating) {
       startScanner();
     }
-    if ((bayState.status !== 'idle' || mode !== 'code') && scanning) {
+    if ((bayState.status !== 'idle' || bayLocked || mode !== 'code') && scanning) {
       stopScanner();
     }
-  }, [bayState.status, mode, scanning, validating, startScanner, stopScanner, siteConfig]);
+  }, [bayState.status, bayLocked, mode, scanning, validating, startScanner, stopScanner, siteConfig]);
 
   useEffect(() => {
     if (!siteConfig) return;
     const fetchStatus = async () => {
       const { data } = await supabase.from('wash_bay_status').select('*').eq('id', siteConfig.id).maybeSingle();
       if (data) {
+        lockFromRow(data);
         setBayState({
           status: data.status as BayStatus,
           current_wash_type: data.current_wash_type,
@@ -228,6 +246,7 @@ const Kiosk = () => {
       { event: 'UPDATE', schema: 'public', table: 'wash_bay_status', filter: `id=eq.${siteConfig.id}` },
       (payload) => {
         const d = payload.new;
+        lockFromRow(d);
         setBayState({
           status: d.status as BayStatus,
           current_wash_type: d.current_wash_type,
@@ -295,7 +314,20 @@ const Kiosk = () => {
           {currentConfig.title}
         </motion.h2>
 
-        {bayState.status === 'idle' && (
+        {bayState.status === 'idle' && bayLocked && (
+          <div className="w-full max-w-md mx-auto p-6 rounded-3xl border-2 border-amber-500/50 bg-amber-500/10 space-y-2">
+            <p className="text-2xl font-black uppercase text-amber-600">Machine busy</p>
+            <p className="text-sm font-semibold text-foreground">Please wait for the car in front to finish.</p>
+            {waitSeconds !== null && waitSeconds > 0 && (
+              <p className="text-4xl font-black font-mono text-foreground">
+                {Math.floor(waitSeconds / 60)}:{String(waitSeconds % 60).padStart(2, '0')}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">Keep your code. It will work as soon as the bay is ready.</p>
+          </div>
+        )}
+
+        {bayState.status === 'idle' && !bayLocked && (
           <div className="flex flex-wrap justify-center gap-3">
             <button onClick={() => setMode('code')} className={`flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-bold transition-all border-2 ${mode === 'code' ? 'bg-primary text-primary-foreground border-primary shadow-xl scale-105' : 'bg-secondary text-muted-foreground border-transparent'}`}>
               <QrCode className="w-5 h-5" /> SCAN CODE
@@ -309,14 +341,14 @@ const Kiosk = () => {
           </div>
         )}
 
-        {bayState.status === 'idle' && mode === 'code' && (
+        {bayState.status === 'idle' && !bayLocked && mode === 'code' && (
           <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto rounded-3xl overflow-hidden border-4 border-primary bg-black shadow-2xl">
             <div id={scannerContainerId} className="w-full h-full" />
             {validating && <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}
           </div>
         )}
 
-        {bayState.status === 'idle' && mode === 'keypad' && (
+        {bayState.status === 'idle' && !bayLocked && mode === 'keypad' && (
           <div className="w-full max-w-xs mx-auto space-y-4">
             <div className="flex justify-center gap-2">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -350,7 +382,7 @@ const Kiosk = () => {
           </div>
         )}
 
-        {bayState.status === 'idle' && mode === 'plate' && (
+        {bayState.status === 'idle' && !bayLocked && mode === 'plate' && (
           <PlateScanner onPlateDetected={validatePlate} disabled={validating} />
         )}
 

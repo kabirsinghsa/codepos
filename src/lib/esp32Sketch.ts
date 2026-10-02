@@ -40,6 +40,14 @@ const bool RELAY_ACTIVE_LOW = __ACTIVE_LOW__;
 
 const unsigned long RELAY_PULSE_MS = __PULSE_MS__;  // default pulse; the app can override per site
 const unsigned long POLL_MS        = __POLL_MS__;  // how often to check Supabase
+
+// ---- Machine busy input (PLC "cycle running" output) ----
+// Wire the PLC output through an optocoupler or interposing relay contact to BUSY_PIN and GND.
+// While the machine is busy the kiosk refuses new codes, so a second car can't start a wash.
+const bool USE_BUSY_INPUT  = __USE_BUSY__;
+const int  BUSY_PIN        = 4;      // input with internal pull-up
+const bool BUSY_ACTIVE_LOW = true;   // true = contact CLOSED (pin to GND) means busy
+const char* DEVICE_KEY     = "__DEVICE_KEY__";   // this site's secret key - keep private
 // ============================================================
 
 // GES Code Controller project (public anon key - read-only access to bay status)
@@ -136,6 +144,46 @@ void pollBay() {
   }
 }
 
+// ---- Busy input reporting ----
+bool busyState = false, busyCandidate = false, busySent = false, busyEverSent = false;
+unsigned long busyChangedAt = 0, lastBusyReport = 0;
+
+bool readBusyPin() {
+  bool level = digitalRead(BUSY_PIN) == HIGH;
+  return BUSY_ACTIVE_LOW ? !level : level;
+}
+
+bool reportBusy(bool busy) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setTimeout(5000);
+  String url = String(SUPABASE_URL) + "/functions/v1/bay-status";
+  if (!http.begin(client, url)) return false;
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("apikey", SUPABASE_ANON_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
+  http.addHeader("x-device-key", DEVICE_KEY);
+  String body = String("{\\"bay_id\\":") + BAY_ID + ",\\"busy\\":" + (busy ? "true" : "false") + "}";
+  int code = http.POST(body);
+  http.end();
+  Serial.printf("[BUSY] Reported %s -> HTTP %d\\n", busy ? "BUSY" : "READY", code);
+  return code == 200;
+}
+
+void handleBusyInput() {
+  if (!USE_BUSY_INPUT) return;
+  bool now = readBusyPin();
+  if (now != busyCandidate) { busyCandidate = now; busyChangedAt = millis(); }
+  if (millis() - busyChangedAt >= 300) busyState = busyCandidate;   // 300 ms debounce
+  bool changed = !busyEverSent || busyState != busySent;
+  bool heartbeat = millis() - lastBusyReport >= 20000;                // every 20 s so the app knows we're online
+  if ((changed || heartbeat) && WiFi.status() == WL_CONNECTED) {
+    lastBusyReport = millis();
+    if (reportBusy(busyState)) { busySent = busyState; busyEverSent = true; }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   for (int i = 0; i < RELAY_COUNT; i++) {
@@ -143,6 +191,7 @@ void setup() {
     relayWrite(i, false);                     // all relays OFF at power-up
   }
   pinMode(STATUS_LED, OUTPUT);
+  if (USE_BUSY_INPUT) pinMode(BUSY_PIN, INPUT_PULLUP);
 
   prefs.begin("codepos", false);
   lastCode = prefs.getString("lastCode", "");
@@ -163,6 +212,7 @@ void loop() {
     lastPoll = millis();
     pollBay();
   }
+  handleBusyInput();
   delay(20);
 }
 `;
@@ -177,6 +227,8 @@ export interface SketchOptions {
   relayCount?: number;
   pulseMs?: number;
   relayMap?: string[];   // e.g. ["Relay 1: Quick Wash, Full Wash", ...]
+  useBusyInput?: boolean;
+  deviceKey?: string;
 }
 
 // Escape text for a C string literal / block comment
@@ -196,6 +248,8 @@ export function buildEsp32Sketch(o: SketchOptions): string {
     .split('__POLL_MS__').join(String(poll))
     .split('__SUPABASE_URL__').join(url)
     .split('__SUPABASE_KEY__').join(key)
+    .split('__USE_BUSY__').join(o.useBusyInput ? 'true' : 'false')
+    .split('__DEVICE_KEY__').join(cStr(o.deviceKey || ''))
     .split('__RELAY_COUNT__').join(String(Math.min(8, Math.max(1, o.relayCount || 4))))
     .split('__PULSE_MS__').join(String(o.pulseMs || 1000))
     .split('__RELAY_MAP__').join((o.relayMap && o.relayMap.length ? o.relayMap : ['(no washes set up yet)'])

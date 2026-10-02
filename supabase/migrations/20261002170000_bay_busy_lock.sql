@@ -1,0 +1,5 @@
+-- Applied via Supabase MCP (2026-10-02): busy lock
+--  * sites.busy_input_enabled, sites.package_duration_seconds
+--  * site_washes.duration_seconds (time lock per wash, backup when no busy signal)
+--  * wash_bay_status.machine_busy / busy_updated_at / locked_until / last_started_at
+--  * site_devices: per-site secret key for the ESP32 bay-status reports (admin-only)

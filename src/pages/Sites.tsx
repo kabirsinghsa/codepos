@@ -21,6 +21,7 @@ interface Site {
   bay_id: number | null;
   relay_count?: number;
   pulse_ms?: number;
+  busy_input_enabled?: boolean;
 }
 
 interface SiteLink { site_id: string; linked_site_id: string; }
@@ -90,10 +91,14 @@ const Sites = () => {
   };
 
   const [relayMap, setRelayMap] = useState<string[]>([]);
+  const [deviceKey, setDeviceKey] = useState('');
   // Load the site's washes so the sketch header lists which wash uses which relay
   useEffect(() => {
     const site = sites.find(x => x.id === sketchId);
     if (!site) return;
+    setDeviceKey('');
+    (supabase as any).from('site_devices').select('device_key').eq('site_id', site.id).maybeSingle()
+      .then(({ data }: any) => setDeviceKey(data?.device_key || ''));
     (supabase as any).from('site_washes').select('name, relay_number, active').eq('site_id', site.id).order('sort_order')
       .then(({ data }: any) => {
         const count = site.relay_count || 4;
@@ -107,10 +112,12 @@ const Sites = () => {
   const sketchFor = (site: Site) => buildEsp32Sketch({
     siteName: site.name, bayId: site.bay_id || 0, wifiSsid, wifiPassword, activeLow, pollSeconds,
     relayCount: site.relay_count || 4, pulseMs: site.pulse_ms || 1000, relayMap,
+    useBusyInput: !!site.busy_input_enabled, deviceKey,
   });
 
   const downloadSketch = (site: Site) => {
     if (!site.bay_id) { toast.error('This site has no bay number yet'); return; }
+    if (site.busy_input_enabled && !deviceKey) { toast.error('Device key not loaded yet. Only admins can download a sketch with the busy input.'); return; }
     const blob = new Blob([sketchFor(site)], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -125,6 +132,7 @@ const Sites = () => {
 
   const copySketch = async (site: Site) => {
     if (!site.bay_id) { toast.error('This site has no bay number yet'); return; }
+    if (site.busy_input_enabled && !deviceKey) { toast.error('Device key not loaded yet. Only admins can download a sketch with the busy input.'); return; }
     try { await navigator.clipboard.writeText(sketchFor(site)); toast.success('Sketch copied'); }
     catch { toast.error('Could not copy. Use Download instead.'); }
   };

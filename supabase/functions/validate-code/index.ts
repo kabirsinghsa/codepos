@@ -13,9 +13,33 @@ const clampRelay = (r: number | null | undefined, count: number) => {
   return n >= 1 && n <= (count || 1) ? n : 1
 }
 
+// ---- Busy lock: never start a second wash while the machine is still running ----
+const GRACE_MS = 30_000   // after a start, give the PLC time to raise its busy signal
+const STALE_MS = 60_000   // busy reports older than this = ESP32 offline, fall back to the timer
+async function bayAvailability(supabase: any, bayId: number, site: any) {
+  const { data: bay } = await supabase.from('wash_bay_status')
+    .select('machine_busy, busy_updated_at, locked_until, last_started_at').eq('id', bayId).maybeSingle()
+  const now = Date.now()
+  const started = bay?.last_started_at ? Date.parse(bay.last_started_at) : 0
+  if (started && now - started < GRACE_MS) return { ok: false, wait: Math.ceil((GRACE_MS - (now - started)) / 1000) }
+  const fresh = site.busy_input_enabled && bay?.busy_updated_at && now - Date.parse(bay.busy_updated_at) < STALE_MS
+  if (fresh) return bay.machine_busy ? { ok: false, wait: null } : { ok: true }
+  const until = bay?.locked_until ? Date.parse(bay.locked_until) : 0
+  if (until > now) return { ok: false, wait: Math.ceil((until - now) / 1000) }
+  return { ok: true }
+}
+const busyResponse = (wait: number | null) => new Response(
+  JSON.stringify({ valid: false, busy: true, wait_seconds: wait,
+    error: wait ? `Machine busy. Please wait about ${wait >= 90 ? Math.ceil(wait / 60) + ' min' : wait + ' sec'}. Your code has not been used.` : 'Machine busy, please wait. Your code has not been used.' }),
+  { status: 423, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+const lockFields = (durationSec: number) => ({
+  last_started_at: new Date().toISOString(),
+  locked_until: new Date(Date.now() + Math.max(0, durationSec) * 1000).toISOString(),
+})
+
 async function getSiteAccess(supabase: any, bayId: number) {
   const { data: site } = await supabase
-    .from('sites').select('id, name, active, relay_count, pulse_ms, package_relay').eq('bay_id', bayId).maybeSingle()
+    .from('sites').select('id, name, active, relay_count, pulse_ms, package_relay, busy_input_enabled, package_duration_seconds').eq('bay_id', bayId).maybeSingle()
   if (!site) return null
   const { data: links } = await supabase
     .from('site_links').select('site_id, linked_site_id')
@@ -101,6 +125,9 @@ Deno.serve(async (req) => {
     }
 
     // Codes are 6 digits, so different sites may issue the same number: fetch candidates and pick the right one
+    const availability = await bayAvailability(supabase, targetBayId, access.site)
+    if (!availability.ok) return busyResponse(availability.wait)
+
     const { data: candidates, error: fetchError } = await supabase
       .from('wash_codes')
       .select('*')
@@ -146,6 +173,7 @@ Deno.serve(async (req) => {
               current_relay: clampRelay(LEGACY_RELAY[masterResult.wash_type], access.site.relay_count),
               current_wash_name: 'Package Wash',
               pulse_ms: access.site.pulse_ms || 1000,
+              ...lockFields(access.site.package_duration_seconds ?? 600),
               current_wash_type: masterResult.wash_type,
               current_code: uniqueWashId,
               started_at: new Date().toISOString(),
@@ -184,6 +212,11 @@ Deno.serve(async (req) => {
       })
       .eq('id', washCode.id)
 
+    let durationSec = 600
+    if (washCode.site_wash_id) {
+      const { data: sw } = await supabase.from('site_washes').select('duration_seconds').eq('id', washCode.site_wash_id).maybeSingle()
+      if (sw) durationSec = sw.duration_seconds
+    }
     const relay = clampRelay(washCode.relay_number ?? LEGACY_RELAY[washCode.wash_type], access.site.relay_count)
     const washName = washCode.wash_name || `${String(washCode.wash_type).charAt(0).toUpperCase()}${String(washCode.wash_type).slice(1)} Wash`
 
@@ -194,6 +227,7 @@ Deno.serve(async (req) => {
           status: 'washing',
           current_relay: relay,
           current_wash_name: washName,
+          ...lockFields(durationSec),
           pulse_ms: access.site.pulse_ms || 1000,
           current_wash_type: washCode.wash_type,
           current_code: uniqueWashId,

@@ -11,10 +11,12 @@ import Footer from '@/components/Footer';
 interface SiteConfig {
   id: string; name: string; bay_id: number | null;
   relay_count: number; pulse_ms: number; package_relay: number; vehicle_pricing: boolean;
+  busy_input_enabled: boolean; package_duration_seconds: number;
 }
 interface SiteWash {
   id: string; site_id: string; name: string; description: string; relay_number: number;
   price: number; price_suv: number; price_quantum: number; sort_order: number; active: boolean;
+  duration_seconds: number;
   _dirty?: boolean; _new?: boolean;
 }
 
@@ -35,7 +37,7 @@ const SiteWashes = () => {
 
   const load = useCallback(async () => {
     const [s, w] = await Promise.all([
-      db.from('sites').select('id, name, bay_id, relay_count, pulse_ms, package_relay, vehicle_pricing').eq('id', siteParam).maybeSingle(),
+      db.from('sites').select('id, name, bay_id, relay_count, pulse_ms, package_relay, vehicle_pricing, busy_input_enabled, package_duration_seconds').eq('id', siteParam).maybeSingle(),
       db.from('site_washes').select('*').eq('site_id', siteParam).order('sort_order').order('created_at'),
     ]);
     setSite(s.data || null);
@@ -53,7 +55,7 @@ const SiteWashes = () => {
     if (!site) return;
     setWashes(prev => [...prev, {
       id: crypto.randomUUID(), site_id: site.id, name: '', description: '', relay_number: 1,
-      price: 0, price_suv: 0, price_quantum: 0, sort_order: prev.length + 1, active: true, _dirty: true, _new: true,
+      price: 0, price_suv: 0, price_quantum: 0, sort_order: prev.length + 1, active: true, duration_seconds: 600, _dirty: true, _new: true,
     }]);
   };
 
@@ -78,6 +80,8 @@ const SiteWashes = () => {
         pulse_ms: Math.min(30000, Math.max(100, Math.round(site.pulse_ms))),
         package_relay: Math.min(relayCount, Math.max(1, site.package_relay)),
         vehicle_pricing: site.vehicle_pricing,
+        busy_input_enabled: site.busy_input_enabled,
+        package_duration_seconds: Math.min(7200, Math.max(0, Math.round(site.package_duration_seconds))),
       }).eq('id', site.id);
       if (siteErr) throw siteErr;
 
@@ -86,6 +90,7 @@ const SiteWashes = () => {
         relay_number: Math.min(relayCount, Math.max(1, w.relay_number)),
         price: Number(w.price) || 0, price_suv: Number(w.price_suv) || 0, price_quantum: Number(w.price_quantum) || 0,
         sort_order: w.sort_order || i + 1, active: w.active,
+        duration_seconds: Math.min(7200, Math.max(0, Math.round(w.duration_seconds))),
       }));
       if (dirty.length) {
         const { error } = await db.from('site_washes').upsert(dirty);
@@ -154,6 +159,23 @@ const SiteWashes = () => {
                   onChange={e => updateSite({ vehicle_pricing: e.target.checked })} />
                 Different prices per vehicle type (Small/Medium, Bakkie/SUV, Quantum)
               </label>
+              <div className="rounded-xl border border-border p-3 space-y-2">
+                <p className="text-sm font-semibold">Stop a second car starting while the machine is busy</p>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" className="mt-1" checked={site.busy_input_enabled} disabled={!canEdit}
+                    onChange={e => updateSite({ busy_input_enabled: e.target.checked })} />
+                  <span>Use the machine's busy signal (PLC output wired to ESP32 GPIO 4). The kiosk waits until the machine says it's finished.</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Each wash's time below is always used as a backup lock, and is the only lock when the busy signal is off or the ESP32 is offline.
+                </p>
+                <label className="space-y-1 block">
+                  <span className="text-xs text-muted-foreground">Package / plate wash time (minutes)</span>
+                  <Input type="number" min={0} max={120} step={0.5} disabled={!canEdit}
+                    value={site.package_duration_seconds / 60}
+                    onChange={e => updateSite({ package_duration_seconds: Math.round(Number(e.target.value) * 60) })} />
+                </label>
+              </div>
               {outOfRange.length > 0 && (
                 <p className="text-xs font-semibold text-destructive">
                   {outOfRange.length} wash(es) use a relay above {site.relay_count}. They will fire relay 1 until you change them.
@@ -178,8 +200,15 @@ const SiteWashes = () => {
                       {w.relay_number > site.relay_count && <option value={w.relay_number}>Relay {w.relay_number} (not available)</option>}
                     </select>
                   </div>
-                  <Input placeholder="Short description (optional)" value={w.description} disabled={!canEdit}
-                    onChange={e => updateWash(w.id, { description: e.target.value })} />
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <Input placeholder="Short description (optional)" value={w.description} disabled={!canEdit}
+                      onChange={e => updateWash(w.id, { description: e.target.value })} />
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Input type="number" min={0} max={120} step={0.5} className="w-20" disabled={!canEdit} aria-label="Wash time in minutes"
+                        value={w.duration_seconds / 60} onChange={e => updateWash(w.id, { duration_seconds: Math.round(Number(e.target.value) * 60) })} />
+                      min
+                    </label>
+                  </div>
                   <div className={`grid gap-2 ${site.vehicle_pricing ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-3'}`}>
                     <label className="space-y-1">
                       <span className="text-[11px] text-muted-foreground">{site.vehicle_pricing ? 'Small/Medium (R)' : 'Price (R)'}</span>
