@@ -7,6 +7,7 @@ import Footer from '@/components/Footer';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, Loader2, X, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Site {
   id: string;
@@ -28,6 +29,7 @@ interface UserRole {
 
 const UserManagement = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
@@ -83,15 +85,25 @@ const UserManagement = () => {
   };
 
   const assignRole = async (userId: string, role: string) => {
-    // Remove existing roles first
-    await supabase.from('user_roles').delete().eq('user_id', userId);
+    // Never let an admin remove their own admin rights (they'd lock themselves out)
+    if (userId === user?.id && getUserRole(userId) === 'admin' && role !== 'admin') {
+      toast.error("You can't remove your own admin role. Ask another admin to do it.");
+      return;
+    }
 
+    // Add the new role FIRST, then remove the others. Deleting first meant a
+    // failed insert left the user with no role at all.
     if (role !== 'user') {
       const { error } = await supabase
         .from('user_roles')
-        .insert({ user_id: userId, role } as any);
+        .upsert({ user_id: userId, role } as any, { onConflict: 'user_id,role', ignoreDuplicates: true });
       if (error) { toast.error('Failed to assign role'); return; }
     }
+
+    let del = supabase.from('user_roles').delete().eq('user_id', userId);
+    if (role !== 'user') del = del.neq('role', role as any);
+    const { error: delError } = await del;
+    if (delError) { toast.error('Failed to remove old role'); return; }
 
     setUserRoles(prev => {
       const filtered = prev.filter(r => r.user_id !== userId);
