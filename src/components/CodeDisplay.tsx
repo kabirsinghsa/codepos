@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { WashCode, getCodeStatus, WASH_OPTIONS } from '@/lib/codeGenerator';
 
 // Newer codes carry their own per-site wash name
@@ -36,63 +37,69 @@ interface CodeDisplayProps {
 }
 
 function printReceipt(code: WashCode, businessPhone: string, businessName: string, receiptFooter: string, siteName: string) {
+  const esc = (v: string) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  const money = (n: number) => `R${Number(n).toFixed(2)}`;
   const wash = washInfo(code);
-  const qrSvg = document.querySelector(`[data-qr-id="${code.id}"]`)?.innerHTML || '';
-  const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || 'N/A';
+  // Build the QR fresh (black on white) so it prints even if the card's QR isn't on screen
+  const qrSvg = renderToStaticMarkup(<QRCodeSVG value={code.code} size={190} level="M" includeMargin bgColor="#ffffff" fgColor="#000000" />);
+  const vehicleLabel = code.vehicleType && code.vehicleType !== 'any' ? (VEHICLE_LABELS[code.vehicleType] || code.vehicleType) : '';
   const extras = code.selectedExtras || [];
-  const extrasTotal = extras.reduce((sum, e) => sum + e.price, 0);
-  const basePrice = code.totalWashes > 1 ? (code.price / code.totalWashes) - extrasTotal : code.price - extrasTotal;
+  const extrasTotal = extras.reduce((sum, e) => sum + Number(e.price), 0);
+  const washes = code.totalWashes || 1;
+  const perWash = washes > 1 ? code.price / washes : code.price;
+  const basePrice = Math.max(0, perWash - extrasTotal);
+  const created = format(new Date(code.createdAt), 'dd/MM/yyyy HH:mm');
+  const expires = format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm');
+  const spaced = code.code.replace(/(\d{3})(\d{3})/, '$1 $2');
 
-  const extrasHtml = extras.length > 0 ? extras.map(e =>
-    `<div class="row"><span class="label">${e.name}</span><span>R${e.price.toFixed(2)}</span></div>`
-  ).join('') : '';
-
-  const displayName = siteName ? `${businessName} ${siteName}`.toUpperCase() : businessName;
-
-  const html = `<!DOCTYPE html><html><head><title>Wash Code Receipt</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Wash code ${esc(code.code)}</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      @page { margin: 0; size: 80mm auto; }
-      body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; font-size: 12px; }
-      .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 12px; margin-bottom: 12px; }
-      .header h1 { font-size: 18px; margin-bottom: 4px; }
-      .header p { font-size: 11px; color: #666; }
-      .qr-box { text-align: center; padding: 16px; margin: 16px 0; }
-      .qr-box svg { width: 180px; height: 180px; }
-      .qr-box .wash-type { font-size: 14px; margin-top: 8px; font-weight: bold; }
-      .qr-box .code-text { font-size: 10px; color: #999; margin-top: 4px; font-family: monospace; }
-      .details { margin: 12px 0; }
-      .details .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px dotted #ccc; }
-      .details .row .label { color: #666; }
-      .extras-header { font-size: 11px; font-weight: bold; margin-top: 8px; margin-bottom: 4px; text-transform: uppercase; color: #333; }
-      .price-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; font-weight: bold; border-top: 2px solid #000; margin-top: 8px; }
-      .footer { text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #333; font-size: 10px; color: #666; }
-      @media print { body { padding: 0; } }
+      @page { margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { background: #fff; }
+      body { font-family: 'Courier New', Courier, monospace; color: #000; font-size: 12px; line-height: 1.35;
+             width: 100%; max-width: 72mm; margin: 0 auto; padding: 3mm 2mm 6mm; }
+      .center { text-align: center; }
+      .site { font-size: 17px; font-weight: 900; text-transform: uppercase; word-wrap: break-word; }
+      .biz { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+      .muted { font-size: 11px; }
+      .sep { border-top: 1px dashed #000; margin: 6px 0; }
+      .row { display: flex; justify-content: space-between; gap: 6px; }
+      .wash { font-size: 15px; font-weight: 900; text-transform: uppercase; margin-top: 2px; }
+      .qr { margin: 4px auto 0; width: 46mm; max-width: 100%; }
+      .qr svg { width: 100%; height: auto; display: block; }
+      .code { font-size: 26px; font-weight: 900; letter-spacing: 3px; margin-top: 2px; }
+      .hint { font-size: 10px; }
+      .total { font-size: 16px; font-weight: 900; }
+      .footer { text-align: center; margin-top: 6px; font-size: 11px; }
     </style></head>
     <body>
-      <div class="header">
-        <h1>${displayName}</h1>
-        <p>Wash Code Receipt</p>
-        <p style="margin-top:4px;">Tel: ${businessPhone}</p>
+      <div class="center">
+        <div class="site">${esc(siteName || businessName)}</div>
+        ${siteName ? `<div class="biz">${esc(businessName)}</div>` : ''}
+        ${businessPhone ? `<div class="muted">Tel: ${esc(businessPhone)}</div>` : ''}
       </div>
-      <div class="qr-box">
-        ${qrSvg}
-        <div class="wash-type">${wash.name}</div>
-        <div class="code-text">${code.code}</div>
+      <div class="sep"></div>
+      <div class="center">
+        <div class="muted">WASH CODE</div>
+        <div class="wash">${esc(wash.name)}</div>
+        <div class="qr">${qrSvg}</div>
+        <div class="code">${spaced}</div>
+        <div class="hint">Scan the QR at the bay, or tap ENTER CODE and type the number</div>
       </div>
-      <div class="details">
-        <div class="row"><span class="label">Vehicle:</span><span>${vehicleLabel}</span></div>
-        <div class="row"><span class="label">Wash:</span><span>${wash.name} — R${basePrice > 0 ? basePrice.toFixed(2) : '0.00'}</span></div>
-        <div class="row"><span class="label">Date:</span><span>${format(new Date(code.createdAt), 'dd/MM/yyyy HH:mm')}</span></div>
-        <div class="row"><span class="label">Expires:</span><span>${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</span></div>
-        ${code.totalWashes > 1 ? `<div class="row"><span class="label">Washes:</span><span>${code.washesUsed}/${code.totalWashes} used</span></div>` : ''}
-      </div>
-      ${extras.length > 0 ? `<div class="extras-header">Extras</div><div class="details">${extrasHtml}</div>` : ''}
-      <div class="price-row"><span>TOTAL:</span><span>R${code.price.toFixed(2)}</span></div>
-      <div class="footer">
-        <p>${receiptFooter}</p>
-        <p>Valid until ${format(new Date(code.expiresAt), 'dd/MM/yyyy HH:mm')}</p>
-      </div>
+      <div class="sep"></div>
+      ${vehicleLabel ? `<div class="row"><span>Vehicle</span><span>${esc(vehicleLabel)}</span></div>` : ''}
+      <div class="row"><span>${esc(wash.name)}</span><span>${money(basePrice)}</span></div>
+      ${extras.map(e => `<div class="row"><span>+ ${esc(e.name)}</span><span>${money(Number(e.price))}</span></div>`).join('')}
+      ${washes > 1 ? `<div class="row"><span>Washes</span><span>${washes} x ${money(perWash)}</span></div>` : ''}
+      <div class="sep"></div>
+      <div class="row total"><span>TOTAL</span><span>${money(code.price)}</span></div>
+      <div class="sep"></div>
+      <div class="row muted"><span>Sold</span><span>${created}</span></div>
+      <div class="row muted"><span>Valid until</span><span>${expires}</span></div>
+      ${washes > 1 ? `<div class="row muted"><span>Used</span><span>${code.washesUsed}/${washes}</span></div>` : ''}
+      <div class="sep"></div>
+      <div class="footer">${esc(receiptFooter)}</div>
     </body></html>`;
 
   // Use iframe for reliable printing (avoids popup blockers)
@@ -101,7 +108,8 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
   iframe.style.top = '-10000px';
   iframe.style.left = '-10000px';
   iframe.style.width = '80mm';
-  iframe.style.height = '0';
+  iframe.style.height = '200mm';   // a zero-height frame prints blank on some Android printers
+  iframe.style.border = '0';
   document.body.appendChild(iframe);
 
   const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
