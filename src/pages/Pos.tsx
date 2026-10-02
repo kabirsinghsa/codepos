@@ -23,7 +23,8 @@ interface BasketItem {
 
 const Pos = () => {
   const navigate = useNavigate();
-  const { user, siteId: userSiteId } = useAuth();
+  const { user, siteId: profileSiteId, isAdmin } = useAuth();
+  const userSiteId = profileSiteId || (isAdmin ? (() => { try { return localStorage.getItem('codepos_admin_site'); } catch { return null; } })() : null);
   const [products, setProducts] = useState<PosProduct[]>([]);
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +32,7 @@ const Pos = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
   const [businessPhone, setBusinessPhone] = useState('');
+  const [receiptFooter, setReceiptFooter] = useState('Thank you for your support!');
   const [siteName, setSiteName] = useState('');
   const [lastReceipt, setLastReceipt] = useState<{ items: BasketItem[]; total: number; date: Date; txId: string } | null>(null);
 
@@ -47,6 +49,7 @@ const Pos = () => {
           settingsRes.data.forEach((r: any) => {
             if (r.key === 'business_name') setBusinessName(r.value);
             if (r.key === 'business_phone') setBusinessPhone(r.value);
+            if (r.key === 'pos_receipt_footer' && r.value) setReceiptFooter(r.value);
           });
         }
 
@@ -64,39 +67,55 @@ const Pos = () => {
   }, [userSiteId]);
 
   const printReceipt = useCallback((receiptData: { items: BasketItem[]; total: number; date: Date; txId: string }) => {
-    const itemsHtml = receiptData.items.map(i => `
-      <tr>
-        <td style="text-align:left;padding:4px 0;">${i.product.name.toUpperCase()}</td>
-        <td style="text-align:center;padding:4px;">${i.quantity}</td>
-        <td style="text-align:right;padding:4px 0;">R${(i.product.price * i.quantity).toFixed(2)}</td>
-      </tr>
-    `).join('');
+    const esc = (v: string) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const money = (n: number) => `R${Number(n).toFixed(2)}`;
+    const itemCount = receiptData.items.reduce((n, i) => n + i.quantity, 0);
+    const d = receiptData.date;
+    const dateStr = d.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+    const slipNo = receiptData.txId.replace(/-/g, '').slice(0, 8).toUpperCase();
 
-    const html = `<!DOCTYPE html><html><head><title>Receipt</title>
+    // Each item: name on its own line, then "qty x price ...... line total" (fits 58 mm and 80 mm paper)
+    const itemsHtml = receiptData.items.map(i => `
+      <div class="item">
+        <div class="name">${esc(i.product.name)}</div>
+        <div class="row"><span>${i.quantity} x ${money(i.product.price)}</span><span>${money(i.product.price * i.quantity)}</span></div>
+      </div>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Slip ${slipNo}</title>
       <style>
-        @page { margin: 0; size: 80mm auto; }
-        body { font-family: 'Courier New', monospace; width: 72mm; margin: 0 auto; padding: 8mm 4mm; font-size: 12px; color: #000; line-height: 1.4; }
-        .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-        .header h1 { font-size: 18px; margin: 0; font-weight: 900; }
-        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-        .total-box { border-top: 2px dashed #000; padding-top: 10px; margin-top: 10px; text-align: right; }
-        .total-box p { font-size: 16px; font-weight: 900; margin: 0; }
-        .footer { text-align: center; margin-top: 20px; font-size: 10px; font-style: italic; }
+        @page { margin: 0; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: #fff; }
+        body { font-family: 'Courier New', Courier, monospace; color: #000; font-size: 12px; line-height: 1.35;
+               width: 100%; max-width: 72mm; margin: 0 auto; padding: 3mm 2mm 6mm; }
+        .center { text-align: center; }
+        .site { font-size: 17px; font-weight: 900; text-transform: uppercase; word-wrap: break-word; }
+        .biz { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-top: 1px; }
+        .muted { font-size: 11px; }
+        .sep { border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; gap: 6px; }
+        .item { margin: 4px 0; }
+        .name { font-weight: 700; text-transform: uppercase; word-wrap: break-word; }
+        .total { font-size: 16px; font-weight: 900; }
+        .footer { text-align: center; margin-top: 8px; font-size: 11px; }
       </style></head>
       <body>
-        <div class="header">
-          <h1>${siteName ? `${businessName} ${siteName.toUpperCase()}` : businessName}</h1>
-          <p>${businessPhone ? `TEL: ${businessPhone}` : ''}</p>
-          <p>${businessPhone ? `TEL: ${businessPhone}` : ''}</p>
-          <p>${receiptData.date.toLocaleDateString()} ${receiptData.date.toLocaleTimeString()}</p>
-          <p style="font-size:9px; margin-top:4px;">TXID: ${receiptData.txId.toUpperCase()}</p>
+        <div class="center">
+          <div class="site">${esc(siteName || businessName)}</div>
+          ${siteName ? `<div class="biz">${esc(businessName)}</div>` : ''}
+          ${businessPhone ? `<div class="muted">Tel: ${esc(businessPhone)}</div>` : ''}
         </div>
-        <table>
-          <thead><tr style="border-bottom:1px solid #000;"><th align="left">ITEM</th><th>QTY</th><th align="right">TOTAL</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div class="total-box"><p>TOTAL: R${receiptData.total.toFixed(2)}</p></div>
-        <div class="footer"><p>Thank you for your business!</p></div>
+        <div class="sep"></div>
+        <div class="row muted"><span>SHOP SLIP</span><span>#${slipNo}</span></div>
+        <div class="row muted"><span>${dateStr}</span><span>${timeStr}</span></div>
+        <div class="sep"></div>
+        ${itemsHtml}
+        <div class="sep"></div>
+        <div class="row muted"><span>Items</span><span>${itemCount}</span></div>
+        <div class="row total"><span>TOTAL</span><span>${money(receiptData.total)}</span></div>
+        <div class="sep"></div>
+        <div class="footer">${esc(receiptFooter)}</div>
       </body></html>`;
 
     const iframe = document.createElement('iframe');
@@ -104,7 +123,8 @@ const Pos = () => {
     iframe.style.top = '-10000px';
     iframe.style.left = '-10000px';
     iframe.style.width = '80mm';
-    iframe.style.height = '0';
+    iframe.style.height = '200mm';   // a zero-height frame prints blank on some Android printers
+    iframe.style.border = '0';
     document.body.appendChild(iframe);
 
     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -134,7 +154,7 @@ const Pos = () => {
         }, 3000);
       }, 500);
     }
-  }, [businessName, businessPhone, siteName]);
+  }, [businessName, businessPhone, siteName, receiptFooter]);
 
   const addToBasket = (product: PosProduct) => {
     setBasket(prev => {
