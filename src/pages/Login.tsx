@@ -68,7 +68,7 @@ const Login = () => {
           <div className="inline-flex p-3.5 rounded-2xl gradient-primary text-white shadow-lg mb-4">
             <Droplets className="w-7 h-7" />
           </div>
-          <h1 className="text-xl font-bold uppercase tracking-tight">Carwash System</h1>
+          <h1 className="text-xl font-bold uppercase tracking-tight">GES Code Controller</h1>
           <p className="text-sm text-muted-foreground mt-1">{isSignUp ? 'Create your account' : 'Sign in to continue'}</p>
         </div>
 

@@ -23,8 +23,8 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/~oauth/],
       },
       manifest: {
-        name: "Carwash Code Generator",
-        short_name: "WashCode",
+        name: "GES Code Controller",
+        short_name: "GES Code",
         description: "Generate and manage car wash codes",
         theme_color: "#1e293b",
         background_color: "#0f172a",
