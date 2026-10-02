@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download, QrCode } from 'lucide-react';
 import { buildEsp32Sketch, sketchFileName } from '@/lib/esp32Sketch';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
@@ -278,10 +278,15 @@ const Sites = () => {
                         🔗 Packages shared with: {linkedNames(site.id).length ? linkedNames(site.id).join(', ') : 'no other sites'}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {(canManageAll || site.id === siteId) && (
                         <Button variant="outline" size="sm" className="gap-1" onClick={() => handleEdit(site)}>
                           <Pencil className="w-3 h-3" /> Edit
+                        </Button>
+                      )}
+                      {(canManageAll || site.id === siteId) && site.bay_id && (
+                        <Button size="sm" className="gap-1" onClick={() => navigate(`/install?site_id=${site.bay_id}`)}>
+                          <QrCode className="w-3 h-3" /> Deploy
                         </Button>
                       )}
                       {canManageAll && (
