@@ -258,7 +258,8 @@ const Index = () => {
       const { error } = await supabase.from('wash_codes').insert({
         id: newCode.id,
         code: newCode.code,
-        wash_type: selectedWash,
+        // For site washes, wash_type mirrors the relay (1=basic..4=ultimate) so older ESP32 sketches still fire the right relay
+        wash_type: selectedSiteWash ? ((['basic', 'standard', 'premium', 'ultimate'] as WashType[])[selectedSiteWash.relay_number - 1] ?? 'basic') : selectedWash,
         customer_phone: customerPhone.trim(),
         price: finalPrice,
         expires_at: expiresAt.toISOString(),
