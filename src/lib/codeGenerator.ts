@@ -16,6 +16,7 @@ export interface WashCode {
   id: string;
   code: string;
   washType: WashType;
+  washName?: string;      // per-site wash name (newer codes)
   customerPhone: string;
   price: number;
   createdAt: Date;

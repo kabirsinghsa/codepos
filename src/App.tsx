@@ -22,6 +22,7 @@ import Install from "./pages/Install";
 import PosProducts from "./pages/PosProducts";
 import Pos from "./pages/Pos";
 import Sites from "./pages/Sites";
+import SiteWashes from "./pages/SiteWashes";
 import BuyPackage from "./pages/BuyPackage";
 import PackageOrders from "./pages/PackageOrders";
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/pos" element={<ProtectedRoute><Pos /></ProtectedRoute>} />
             <Route path="/pos-products" element={<AdminRoute><PosProducts /></AdminRoute>} />
             <Route path="/sites" element={<ProtectedRoute><Sites /></ProtectedRoute>} />
+            <Route path="/site-washes" element={<ProtectedRoute><SiteWashes /></ProtectedRoute>} />
             <Route path="/package-orders" element={<AdminRoute><PackageOrders /></AdminRoute>} />
             <Route path="/theme" element={<AdminRoute><ThemeSettings /></AdminRoute>} />
             <Route path="/install" element={<Install />} />

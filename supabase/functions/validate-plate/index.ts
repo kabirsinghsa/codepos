@@ -15,9 +15,16 @@ const washTypeToRelay: Record<string, string> = {
 }
 
 // Resolve the kiosk bay number to its site, plus the sites linked to it.
+// Old codes without a relay: Basic=1, Standard=2, Premium=3, Ultimate=4
+const LEGACY_RELAY: Record<string, number> = { basic: 1, standard: 2, premium: 3, ultimate: 4 }
+const clampRelay = (r: number | null | undefined, count: number) => {
+  const n = Number(r) || 1
+  return n >= 1 && n <= (count || 1) ? n : 1
+}
+
 async function getSiteAccess(supabase: any, bayId: number) {
   const { data: site } = await supabase
-    .from('sites').select('id, name, active').eq('bay_id', bayId).maybeSingle()
+    .from('sites').select('id, name, active, relay_count, pulse_ms, package_relay').eq('bay_id', bayId).maybeSingle()
   if (!site) return null
   const { data: links } = await supabase
     .from('site_links').select('site_id, linked_site_id')
@@ -86,6 +93,9 @@ Deno.serve(async (req) => {
       .from('wash_bay_status')
       .update({
         status: 'washing',
+        current_relay: clampRelay(access.site.package_relay, access.site.relay_count),
+        current_wash_name: 'Package Wash',
+        pulse_ms: access.site.pulse_ms || 1000,
         current_wash_type: relayWashType,
         current_code: uniqueWashId,
         started_at: new Date().toISOString(),

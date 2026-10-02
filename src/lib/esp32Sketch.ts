@@ -8,11 +8,12 @@ const TEMPLATE = `/*
   it pulses the relay for that wash type. The relay contacts go to the
   Delta PLC inputs that select/start the wash programme.
 
-  Wash type -> relay:
-    basic    -> RELAY 1
-    standard -> RELAY 2
-    premium  -> RELAY 3
-    ultimate -> RELAY 4
+  The app tells the ESP32 WHICH relay to pulse for each wash
+  (set per wash on the site's Washes & Relays page), so changing
+  the wash menu never needs a new sketch.
+
+  This site uses __RELAY_COUNT__ relay(s):
+__RELAY_MAP__
 
   Board: ESP32 Dev Module   Libraries: ArduinoJson (v7) by Benoit Blanchon
 */
@@ -31,12 +32,13 @@ const char* WIFI_PASSWORD = "__WIFI_PASSWORD__";
 const int   BAY_ID = __BAY_ID__;   // __SITE_NAME__ (kiosk link ?site_id=__BAY_ID__)
 
 // Relay output pins (safe ESP32 GPIOs)
-const int RELAY_PINS[4] = { 26, 27, 32, 33 };   // basic, standard, premium, ultimate
+const int RELAY_COUNT = __RELAY_COUNT__;        // relays used at this site (1-8)
+const int RELAY_PINS[8] = { 26, 27, 32, 33, 25, 14, 13, 23 };   // relay 1..8 (change to match your board)
 
 // Most cheap relay boards switch ON when the pin goes LOW. Set false if yours is active-high.
 const bool RELAY_ACTIVE_LOW = __ACTIVE_LOW__;
 
-const unsigned long RELAY_PULSE_MS = 1000;  // how long the relay closes (PLC must see the input)
+const unsigned long RELAY_PULSE_MS = __PULSE_MS__;  // default pulse; the app can override per site
 const unsigned long POLL_MS        = __POLL_MS__;  // how often to check Supabase
 // ============================================================
 
@@ -66,11 +68,11 @@ int relayForWashType(const String& t) {
   return -1;
 }
 
-void pulseRelay(int idx) {
-  Serial.printf("[RELAY] Pulsing relay %d (GPIO %d) for %lu ms\\n", idx + 1, RELAY_PINS[idx], RELAY_PULSE_MS);
+void pulseRelay(int idx, unsigned long ms) {
+  Serial.printf("[RELAY] Pulsing relay %d (GPIO %d) for %lu ms\\n", idx + 1, RELAY_PINS[idx], ms);
   relayWrite(idx, true);
   unsigned long start = millis();
-  while (millis() - start < RELAY_PULSE_MS) { esp_task_wdt_reset(); delay(10); }
+  while (millis() - start < ms) { esp_task_wdt_reset(); delay(10); }
   relayWrite(idx, false);
 }
 
@@ -95,7 +97,7 @@ void pollBay() {
   HTTPClient http;
   http.setTimeout(5000);
 
-  String url = String(SUPABASE_URL) + "/rest/v1/wash_bay_status?select=status,current_wash_type,current_code&id=eq." + BAY_ID;
+  String url = String(SUPABASE_URL) + "/rest/v1/wash_bay_status?select=status,current_wash_type,current_code,current_relay,pulse_ms&id=eq." + BAY_ID;
   if (!http.begin(client, url)) { Serial.println("[HTTP] begin failed"); return; }
   http.addHeader("apikey", SUPABASE_ANON_KEY);
   http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
@@ -118,16 +120,17 @@ void pollBay() {
   String status   = doc[0]["status"] | "";
   String washType = doc[0]["current_wash_type"] | "";
   String washCode = doc[0]["current_code"] | "";
+  int relayNum    = doc[0]["current_relay"] | 0;                       // 1-based, set by the app
+  unsigned long pulseMs = doc[0]["pulse_ms"] | (int)RELAY_PULSE_MS;
+  if (pulseMs < 100 || pulseMs > 30000) pulseMs = RELAY_PULSE_MS;
 
   // New wash = status 'washing' with a wash ID we haven't triggered before
   if (status == "washing" && washCode.length() > 0 && washCode != lastCode) {
-    int relay = relayForWashType(washType);
-    Serial.printf("[BAY %d] New wash: %s (%s)\\n", BAY_ID, washCode.c_str(), washType.c_str());
-    if (relay >= 0) {
-      pulseRelay(relay);
-    } else {
-      Serial.printf("[BAY %d] Unknown wash type '%s' - no relay\\n", BAY_ID, washType.c_str());
-    }
+    // Older washes without a relay number fall back to Basic=1 .. Ultimate=4
+    int relay = relayNum >= 1 ? relayNum - 1 : relayForWashType(washType);
+    if (relay < 0 || relay >= RELAY_COUNT) relay = 0;               // out of range -> relay 1
+    Serial.printf("[BAY %d] New wash: %s -> relay %d\\n", BAY_ID, washCode.c_str(), relay + 1);
+    pulseRelay(relay, pulseMs);
     lastCode = washCode;
     prefs.putString("lastCode", lastCode);   // don't re-trigger after a power cut
   }
@@ -135,7 +138,7 @@ void pollBay() {
 
 void setup() {
   Serial.begin(115200);
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < RELAY_COUNT; i++) {
     pinMode(RELAY_PINS[i], OUTPUT);
     relayWrite(i, false);                     // all relays OFF at power-up
   }
@@ -171,6 +174,9 @@ export interface SketchOptions {
   wifiPassword?: string;
   activeLow?: boolean;
   pollSeconds?: number;
+  relayCount?: number;
+  pulseMs?: number;
+  relayMap?: string[];   // e.g. ["Relay 1: Quick Wash, Full Wash", ...]
 }
 
 // Escape text for a C string literal / block comment
@@ -189,7 +195,11 @@ export function buildEsp32Sketch(o: SketchOptions): string {
     .split('__ACTIVE_LOW__').join(o.activeLow === false ? 'false' : 'true')
     .split('__POLL_MS__').join(String(poll))
     .split('__SUPABASE_URL__').join(url)
-    .split('__SUPABASE_KEY__').join(key);
+    .split('__SUPABASE_KEY__').join(key)
+    .split('__RELAY_COUNT__').join(String(Math.min(8, Math.max(1, o.relayCount || 4))))
+    .split('__PULSE_MS__').join(String(o.pulseMs || 1000))
+    .split('__RELAY_MAP__').join((o.relayMap && o.relayMap.length ? o.relayMap : ['(no washes set up yet)'])
+      .map(l => '    ' + cComment(l)).join('\n'));
 }
 
 export function sketchFileName(siteName: string, bayId: number) {

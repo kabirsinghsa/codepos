@@ -37,6 +37,7 @@ const MyCodes = () => {
         id: row.id,
         code: row.code,
         washType: row.wash_type as WashType,
+        washName: row.wash_name ?? undefined,
         customerPhone: row.customer_phone,
         price: Number(row.price),
         createdAt: new Date(row.created_at),
@@ -90,7 +91,7 @@ const MyCodes = () => {
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Codes</h2>
             {activeCodes.map(code => {
-              const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
+              const wash = (code.washName ? { name: code.washName } : (WASH_OPTIONS.find(w => w.id === code.washType) || { name: 'Wash' })) as any;
               const status = getCodeStatus(code);
               const cfg = statusConfig[status];
               return (
@@ -133,7 +134,7 @@ const MyCodes = () => {
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Past Codes</h2>
             {pastCodes.map(code => {
-              const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
+              const wash = (code.washName ? { name: code.washName } : (WASH_OPTIONS.find(w => w.id === code.washType) || { name: 'Wash' })) as any;
               const status = getCodeStatus(code);
               const cfg = statusConfig[status];
               return (

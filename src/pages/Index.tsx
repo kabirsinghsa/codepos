@@ -61,6 +61,10 @@ const Index = () => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [customerPhone, setCustomerPhone] = useState('');
   const [price, setPrice] = useState<number>(0);
+  // Per-site wash menu (each wash mapped to an ESP32 relay)
+  const [siteWashes, setSiteWashes] = useState<any[]>([]);
+  const [vehiclePricing, setVehiclePricing] = useState(true);
+  const [selectedSiteWashId, setSelectedSiteWashId] = useState<string | null>(null);
   const [dbPrices, setDbPrices] = useState<Record<string, Record<string, number>>>({});
   const [businessPhone, setBusinessPhone] = useState('000-000-0000');
   const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
@@ -150,6 +154,36 @@ const Index = () => {
     fetchPrices();
   }, []);
 
+  const sitePrice = (w: any, vehicle: string, pricingOn: boolean) =>
+    Number(!pricingOn || vehicle === 'small_medium' ? w.price : vehicle === 'bakkie_suv' ? w.price_suv : w.price_quantum) || 0;
+
+  useEffect(() => {
+    if (!siteId) { setSiteWashes([]); setSelectedSiteWashId(null); return; }
+    const db = supabase as any;
+    Promise.all([
+      db.from('site_washes').select('*').eq('site_id', siteId).eq('active', true).order('sort_order').order('created_at'),
+      db.from('sites').select('vehicle_pricing').eq('id', siteId).maybeSingle(),
+    ]).then(([w, s]: any[]) => {
+      const list = w.data || [];
+      const pricingOn = s.data?.vehicle_pricing !== false;
+      setSiteWashes(list);
+      setVehiclePricing(pricingOn);
+      if (list.length) {
+        setSelectedSiteWashId(list[0].id);
+        setPrice(sitePrice(list[0], pricingOn ? selectedVehicle : 'small_medium', pricingOn));
+      } else {
+        setSelectedSiteWashId(null);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId]);
+
+  const selectedSiteWash = siteWashes.find(w => w.id === selectedSiteWashId) || null;
+  const handleSiteWashSelect = (w: any) => {
+    setSelectedSiteWashId(w.id);
+    setPrice(sitePrice(w, selectedVehicle, vehiclePricing));
+  };
+
   const fetchCodes = useCallback(async () => {
     let query = supabase
       .from('wash_codes')
@@ -166,6 +200,7 @@ const Index = () => {
         id: row.id,
         code: row.code,
         washType: row.wash_type as WashType,
+        washName: (row as any).wash_name ?? undefined,
         customerPhone: row.customer_phone,
         price: Number(row.price),
         createdAt: new Date(row.created_at),
@@ -201,7 +236,8 @@ const Index = () => {
 
   const handleVehicleSelect = (vehicleType: string) => {
     setSelectedVehicle(vehicleType);
-    setPrice(dbPrices[vehicleType]?.[selectedWash] ?? DEFAULT_PRICES[selectedWash]);
+    if (selectedSiteWash) setPrice(sitePrice(selectedSiteWash, vehicleType, vehiclePricing));
+    else setPrice(dbPrices[vehicleType]?.[selectedWash] ?? DEFAULT_PRICES[selectedWash]);
   };
 
   const handleGenerate = useCallback(async () => {
@@ -226,10 +262,13 @@ const Index = () => {
         customer_phone: customerPhone.trim(),
         price: finalPrice,
         expires_at: expiresAt.toISOString(),
-        plc_input: plcInputMap[selectedWash],
+        plc_input: selectedSiteWash ? selectedSiteWash.relay_number : plcInputMap[selectedWash],
+        site_wash_id: selectedSiteWash?.id ?? null,
+        wash_name: selectedSiteWash?.name ?? null,
+        relay_number: selectedSiteWash ? selectedSiteWash.relay_number : null,
         total_washes: isMultiWash ? washQuantity : 1,
         washes_used: 0,
-        vehicle_type: selectedVehicle,
+        vehicle_type: siteWashes.length && !vehiclePricing ? 'any' : selectedVehicle,
         selected_extras: selectedExtrasList,
         site_id: siteId,
       } as any);
@@ -247,7 +286,7 @@ const Index = () => {
     } finally {
       setGenerating(false);
     }
-  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId, extras, selectedExtras, multiWashDays, selectedVehicle, fetchCodes, isAdmin]);
+  }, [selectedWash, expiryDays, codes, customerPhone, totalPrice, isMultiWash, washQuantity, siteId, extras, selectedExtras, multiWashDays, selectedVehicle, fetchCodes, isAdmin, selectedSiteWash, siteWashes, vehiclePricing]);
 
   const handleMarkUsed = useCallback(async (id: string) => {
     const code = codes.find((c) => c.id === id);
@@ -402,6 +441,7 @@ const Index = () => {
           {/* Left Panel: Configuration */}
           <div className="lg:col-span-7 space-y-6">
             <section className="premium-card p-6 space-y-6">
+              {(!siteWashes.length || vehiclePricing) && (
               <div className="space-y-3">
                 <h2 className="section-label pl-1">01 — Vehicle Category</h2>
                 <div className="grid grid-cols-3 gap-2">
@@ -412,11 +452,21 @@ const Index = () => {
                   ))}
                 </div>
               </div>
+              )}
 
               <div className="space-y-3">
                 <h2 className="section-label pl-1">02 — Service Selection</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {WASH_OPTIONS.map((option) => (
+                  {siteWashes.length ? siteWashes.map((w) => (
+                    <button key={w.id} onClick={() => handleSiteWashSelect(w)}
+                      className={`relative p-3.5 rounded-xl border transition-all duration-200 text-left w-full ${selectedSiteWashId === w.id ? 'border-primary/60 bg-primary/10 shadow-md' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
+                      <span className="font-semibold text-sm text-foreground block mb-1">{w.name}</span>
+                      {w.description && <p className="text-xs text-muted-foreground leading-relaxed">{w.description}</p>}
+                      <span className="text-[9px] text-muted-foreground/60 font-mono mt-1.5 block">
+                        R{sitePrice(w, selectedVehicle, vehiclePricing).toFixed(2)} · Relay {w.relay_number}
+                      </span>
+                    </button>
+                  )) : WASH_OPTIONS.map((option) => (
                     <WashTypeCard key={option.id} option={option} selected={selectedWash === option.id} onSelect={handleWashSelect} />
                   ))}
                 </div>

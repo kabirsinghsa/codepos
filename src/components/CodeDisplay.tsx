@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { WashCode, getCodeStatus, WASH_OPTIONS } from '@/lib/codeGenerator';
+
+// Newer codes carry their own per-site wash name
+const washInfo = (code: WashCode) =>
+  code.washName ? { name: code.washName } : (WASH_OPTIONS.find(w => w.id === code.washType) || { name: 'Wash' });
 import { format } from 'date-fns';
 import { Printer, Share2, CalendarClock, Check, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -14,6 +18,7 @@ const statusStyles = {
 };
 
 const VEHICLE_LABELS: Record<string, string> = {
+  any: 'Any vehicle',
   small_medium: 'Small/Medium',
   bakkie_suv: 'Bakkie/SUV',
   quantum: 'Quantum',
@@ -31,7 +36,7 @@ interface CodeDisplayProps {
 }
 
 function printReceipt(code: WashCode, businessPhone: string, businessName: string, receiptFooter: string, siteName: string) {
-  const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
+  const wash = washInfo(code);
   const qrSvg = document.querySelector(`[data-qr-id="${code.id}"]`)?.innerHTML || '';
   const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || 'N/A';
   const extras = code.selectedExtras || [];
@@ -124,7 +129,7 @@ function printReceipt(code: WashCode, businessPhone: string, businessName: strin
 
 export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false, businessPhone = '000-000-0000', businessName = 'GES CODE CONTROLLER', receiptFooter = 'Scan QR code at the wash bay to start.', siteName = '' }: CodeDisplayProps) {
   const status = getCodeStatus(code);
-  const wash = WASH_OPTIONS.find(w => w.id === code.washType)!;
+  const wash = washInfo(code);
   const vehicleLabel = VEHICLE_LABELS[code.vehicleType || 'small_medium'] || code.vehicleType || '';
   const extras = code.selectedExtras || [];
   const [editingExpiry, setEditingExpiry] = useState(false);
@@ -184,7 +189,7 @@ export function CodeDisplay({ code, onMarkUsed, onExpiryUpdated, isAdmin = false
           <button
             onClick={() => {
               const appUrl = `${window.location.origin}/my-codes`;
-              const w = WASH_OPTIONS.find(w => w.id === code.washType)!;
+              const w = washInfo(code);
               const message = `Your ${w.name} wash code is ready!\n\nCode: ${code.code}\nPrice: R${code.price.toFixed(2)}\n\nView: ${appUrl}`;
               if (navigator.share) {
                 navigator.share({ title: 'Wash Code', text: message, url: appUrl });

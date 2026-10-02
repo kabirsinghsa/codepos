@@ -14,6 +14,7 @@ type KioskMode = 'code' | 'keypad' | 'plate';
 interface BayState {
   status: BayStatus;
   current_wash_type: string | null;
+  current_wash_name?: string | null;
   current_code: string | null;
   started_at: string | null;
 }
@@ -214,6 +215,7 @@ const Kiosk = () => {
         setBayState({
           status: data.status as BayStatus,
           current_wash_type: data.current_wash_type,
+          current_wash_name: (data as any).current_wash_name,
           current_code: data.current_code,
           started_at: data.started_at,
         });
@@ -229,6 +231,7 @@ const Kiosk = () => {
         setBayState({
           status: d.status as BayStatus,
           current_wash_type: d.current_wash_type,
+          current_wash_name: d.current_wash_name,
           current_code: d.current_code,
           started_at: d.started_at,
         });
@@ -255,7 +258,9 @@ const Kiosk = () => {
   }
 
   const currentConfig = statusConfig[bayState.status];
-  const washLabel = bayState.current_wash_type
+  const washLabel = (bayState as any).current_wash_name
+    ? (bayState as any).current_wash_name
+    : bayState.current_wash_type
     ? bayState.current_wash_type.charAt(0).toUpperCase() + bayState.current_wash_type.slice(1) + ' Wash'
     : null;
 

@@ -19,6 +19,8 @@ interface Site {
   active: boolean;
   created_at: string;
   bay_id: number | null;
+  relay_count?: number;
+  pulse_ms?: number;
 }
 
 interface SiteLink { site_id: string; linked_site_id: string; }
@@ -87,8 +89,24 @@ const Sites = () => {
     }
   };
 
+  const [relayMap, setRelayMap] = useState<string[]>([]);
+  // Load the site's washes so the sketch header lists which wash uses which relay
+  useEffect(() => {
+    const site = sites.find(x => x.id === sketchId);
+    if (!site) return;
+    (supabase as any).from('site_washes').select('name, relay_number, active').eq('site_id', site.id).order('sort_order')
+      .then(({ data }: any) => {
+        const count = site.relay_count || 4;
+        setRelayMap(Array.from({ length: count }, (_, i) => {
+          const names = (data || []).filter((w: any) => w.active && w.relay_number === i + 1).map((w: any) => w.name);
+          return `Relay ${i + 1}: ${names.length ? names.join(', ') : '(not used)'}`;
+        }));
+      });
+  }, [sketchId, sites]);
+
   const sketchFor = (site: Site) => buildEsp32Sketch({
     siteName: site.name, bayId: site.bay_id || 0, wifiSsid, wifiPassword, activeLow, pollSeconds,
+    relayCount: site.relay_count || 4, pulseMs: site.pulse_ms || 1000, relayMap,
   });
 
   const downloadSketch = (site: Site) => {
@@ -284,6 +302,11 @@ const Sites = () => {
                           <Pencil className="w-3 h-3" /> Edit
                         </Button>
                       )}
+                      {(canManageAll || site.id === siteId) && (
+                        <Button variant="outline" size="sm" className="gap-1" onClick={() => navigate(`/site-washes?site=${site.id}`)}>
+                          <Cpu className="w-3 h-3" /> Washes & relays
+                        </Button>
+                      )}
                       {(canManageAll || site.id === siteId) && site.bay_id && (
                         <Button size="sm" className="gap-1" onClick={() => navigate(`/install?site_id=${site.bay_id}`)}>
                           <QrCode className="w-3 h-3" /> Deploy
@@ -337,7 +360,7 @@ const Sites = () => {
                           </Button>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          Relays: 1 = Basic (GPIO 26), 2 = Standard (27), 3 = Premium (32), 4 = Ultimate (33). Needs the ArduinoJson library and ESP32 board package 3.x.
+                          This site uses {site.relay_count || 4} relay(s). Pins: relay 1 = GPIO 26, 2 = 27, 3 = 32, 4 = 33, 5 = 25, 6 = 14, 7 = 13, 8 = 23. Which wash fires which relay is set on Washes & relays and needs no new sketch. Needs the ArduinoJson library and ESP32 board package 3.x.
                         </p>
                       </div>
                     )}

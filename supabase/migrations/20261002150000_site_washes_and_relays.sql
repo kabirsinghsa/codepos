@@ -1,0 +1,7 @@
+-- Applied directly via Supabase MCP (2026-10-02):
+--  * sites: relay_count (1-8), pulse_ms, package_relay, vehicle_pricing
+--  * site_washes: per-site wash menu, each wash -> relay_number (many washes may share a relay)
+--  * wash_codes: site_wash_id, wash_name, relay_number
+--  * wash_bay_status: current_relay, current_wash_name, pulse_ms
+--  * existing sites seeded with Basic/Standard/Premium/Ultimate on relays 1-4; packages on relay 4
+--  * create_bay_for_site() also seeds the 4 default washes for new sites

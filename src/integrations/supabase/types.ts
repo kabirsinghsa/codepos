@@ -325,8 +325,18 @@ export type Database = {
         Update: { created_at?: string; linked_site_id?: string; site_id?: string }
         Relationships: []
       }
+      site_washes: {
+        Row: { active: boolean; created_at: string; description: string; id: string; name: string; price: number; price_quantum: number; price_suv: number; relay_number: number; site_id: string; sort_order: number }
+        Insert: { active?: boolean; created_at?: string; description?: string; id?: string; name: string; price?: number; price_quantum?: number; price_suv?: number; relay_number?: number; site_id: string; sort_order?: number }
+        Update: { active?: boolean; created_at?: string; description?: string; id?: string; name?: string; price?: number; price_quantum?: number; price_suv?: number; relay_number?: number; site_id?: string; sort_order?: number }
+        Relationships: []
+      }
       sites: {
         Row: {
+          relay_count: number
+          pulse_ms: number
+          package_relay: number
+          vehicle_pricing: boolean
           active: boolean
           address: string
           bay_id: number | null
@@ -337,6 +347,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          relay_count?: number
+          pulse_ms?: number
+          package_relay?: number
+          vehicle_pricing?: boolean
           active?: boolean
           address?: string
           bay_id?: number | null
@@ -347,6 +361,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          relay_count?: number
+          pulse_ms?: number
+          package_relay?: number
+          vehicle_pricing?: boolean
           active?: boolean
           address?: string
           bay_id?: number | null
@@ -378,6 +396,9 @@ export type Database = {
       }
       wash_bay_status: {
         Row: {
+          current_relay: number | null
+          current_wash_name: string | null
+          pulse_ms: number | null
           current_code: string | null
           current_wash_type: string | null
           id: number
@@ -386,6 +407,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          current_relay?: number | null
+          current_wash_name?: string | null
+          pulse_ms?: number | null
           current_code?: string | null
           current_wash_type?: string | null
           id?: number
@@ -394,6 +418,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          current_relay?: number | null
+          current_wash_name?: string | null
+          pulse_ms?: number | null
           current_code?: string | null
           current_wash_type?: string | null
           id?: number
@@ -405,6 +432,9 @@ export type Database = {
       }
       wash_codes: {
         Row: {
+          site_wash_id: string | null
+          wash_name: string | null
+          relay_number: number | null
           code: string
           created_at: string
           customer_phone: string
@@ -422,6 +452,9 @@ export type Database = {
           washes_used: number
         }
         Insert: {
+          site_wash_id?: string | null
+          wash_name?: string | null
+          relay_number?: number | null
           code: string
           created_at?: string
           customer_phone?: string
@@ -439,6 +472,9 @@ export type Database = {
           washes_used?: number
         }
         Update: {
+          site_wash_id?: string | null
+          wash_name?: string | null
+          relay_number?: number | null
           code?: string
           created_at?: string
           customer_phone?: string
