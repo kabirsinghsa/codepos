@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download } from 'lucide-react';
+import { buildEsp32Sketch, sketchFileName } from '@/lib/esp32Sketch';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -35,6 +36,11 @@ const Sites = () => {
   const [phone, setPhone] = useState('');
   const [links, setLinks] = useState<SiteLink[]>([]);
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [sketchId, setSketchId] = useState<string | null>(null);
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [activeLow, setActiveLow] = useState(true);
+  const [pollSeconds, setPollSeconds] = useState(1);
 
   const canManageAll = isAdmin;
   const canEditOwn = isSiteManager && !!siteId;
@@ -79,6 +85,30 @@ const Sites = () => {
       setLinks(prev => [...prev, { site_id: a, linked_site_id: b }]);
       toast.success('Sites linked: packages now work at both');
     }
+  };
+
+  const sketchFor = (site: Site) => buildEsp32Sketch({
+    siteName: site.name, bayId: site.bay_id || 0, wifiSsid, wifiPassword, activeLow, pollSeconds,
+  });
+
+  const downloadSketch = (site: Site) => {
+    if (!site.bay_id) { toast.error('This site has no bay number yet'); return; }
+    const blob = new Blob([sketchFor(site)], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = sketchFileName(site.name, site.bay_id);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success('Sketch downloaded');
+  };
+
+  const copySketch = async (site: Site) => {
+    if (!site.bay_id) { toast.error('This site has no bay number yet'); return; }
+    try { await navigator.clipboard.writeText(sketchFor(site)); toast.success('Sketch copied'); }
+    catch { toast.error('Could not copy. Use Download instead.'); }
   };
 
   const kioskUrl = (bay: number | null) => `${window.location.origin}/kiosk?site_id=${bay ?? ''}`;
@@ -260,6 +290,10 @@ const Sites = () => {
                             onClick={() => setLinkingId(linkingId === site.id ? null : site.id)}>
                             <Link2 className="w-3 h-3" /> Link sites
                           </Button>
+                          <Button variant={sketchId === site.id ? 'default' : 'outline'} size="sm" className="gap-1"
+                            onClick={() => setSketchId(sketchId === site.id ? null : site.id)}>
+                            <Cpu className="w-3 h-3" /> ESP32 sketch
+                          </Button>
                           <Button variant="outline" size="sm" className="gap-1" onClick={() => handleToggleActive(site)}>
                             {site.active ? 'Deactivate' : 'Activate'}
                           </Button>
@@ -269,6 +303,39 @@ const Sites = () => {
                         </>
                       )}
                     </div>
+                    {canManageAll && sketchId === site.id && (
+                      <div className="mt-2 p-3 rounded-xl border border-border bg-muted/30 space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Relay controller sketch for <strong>{site.name}</strong> (Bay {site.bay_id}). WiFi details are only put in the file, never saved.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Input placeholder="WiFi name (SSID)" value={wifiSsid} onChange={e => setWifiSsid(e.target.value)} />
+                          <Input placeholder="WiFi password" type="password" value={wifiPassword} onChange={e => setWifiPassword(e.target.value)} />
+                          <select value={activeLow ? 'low' : 'high'} onChange={e => setActiveLow(e.target.value === 'low')}
+                            className="h-10 rounded-md bg-secondary border border-border px-3 text-sm" aria-label="Relay board type">
+                            <option value="low">Relay board: active-LOW (most boards)</option>
+                            <option value="high">Relay board: active-HIGH</option>
+                          </select>
+                          <select value={pollSeconds} onChange={e => setPollSeconds(Number(e.target.value))}
+                            className="h-10 rounded-md bg-secondary border border-border px-3 text-sm" aria-label="Check interval">
+                            <option value={1}>Check every 1 second (fastest)</option>
+                            <option value={3}>Check every 3 seconds (less data)</option>
+                            <option value={5}>Check every 5 seconds (least data)</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" className="gap-1" onClick={() => downloadSketch(site)}>
+                            <Download className="w-3 h-3" /> Download .ino
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => copySketch(site)}>
+                            <Copy className="w-3 h-3" /> Copy code
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Relays: 1 = Basic (GPIO 26), 2 = Standard (27), 3 = Premium (32), 4 = Ultimate (33). Needs the ArduinoJson library and ESP32 board package 3.x.
+                        </p>
+                      </div>
+                    )}
                     {canManageAll && linkingId === site.id && (
                       <div className="mt-2 p-3 rounded-xl border border-border bg-muted/30 space-y-2">
                         <p className="text-xs text-muted-foreground">Linked sites accept each other's packages (plates and multi-wash codes). Single wash codes only work at the site that sold them.</p>

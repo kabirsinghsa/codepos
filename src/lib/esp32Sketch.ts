@@ -1,0 +1,198 @@
+// Generates the ESP32 relay sketch for one site / bay.
+const TEMPLATE = `/*
+  GES Code Controller - Bay Relay (ESP32)
+  Site: __SITE_NAME__   Bay: __BAY_ID__
+  ---------------------------------------
+  Polls the GES Code Controller table 'wash_bay_status' for ONE bay.
+  When a new wash starts (status = 'washing' with a new current_code),
+  it pulses the relay for that wash type. The relay contacts go to the
+  Delta PLC inputs that select/start the wash programme.
+
+  Wash type -> relay:
+    basic    -> RELAY 1
+    standard -> RELAY 2
+    premium  -> RELAY 3
+    ultimate -> RELAY 4
+
+  Board: ESP32 Dev Module   Libraries: ArduinoJson (v7) by Benoit Blanchon
+*/
+
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Preferences.h>
+#include <esp_task_wdt.h>
+
+// ================== SETTINGS - CHANGE THESE ==================
+const char* WIFI_SSID     = "__WIFI_SSID__";
+const char* WIFI_PASSWORD = "__WIFI_PASSWORD__";
+
+const int   BAY_ID = __BAY_ID__;   // __SITE_NAME__ (kiosk link ?site_id=__BAY_ID__)
+
+// Relay output pins (safe ESP32 GPIOs)
+const int RELAY_PINS[4] = { 26, 27, 32, 33 };   // basic, standard, premium, ultimate
+
+// Most cheap relay boards switch ON when the pin goes LOW. Set false if yours is active-high.
+const bool RELAY_ACTIVE_LOW = __ACTIVE_LOW__;
+
+const unsigned long RELAY_PULSE_MS = 1000;  // how long the relay closes (PLC must see the input)
+const unsigned long POLL_MS        = __POLL_MS__;  // how often to check Supabase
+// ============================================================
+
+// GES Code Controller project (public anon key - read-only access to bay status)
+const char* SUPABASE_URL = "__SUPABASE_URL__";
+const char* SUPABASE_ANON_KEY =
+  "__SUPABASE_KEY__";
+
+const int STATUS_LED = 2;          // on-board LED: on = WiFi connected
+const int WDT_TIMEOUT_S = 30;      // reboot if the loop ever hangs
+
+Preferences prefs;
+String lastCode = "";              // last wash ID we triggered (survives reboots)
+unsigned long lastPoll = 0;
+unsigned long wifiRetryAt = 0;
+unsigned long wifiBackoff = 1000;
+
+void relayWrite(int idx, bool on) {
+  digitalWrite(RELAY_PINS[idx], (on ^ RELAY_ACTIVE_LOW) ? HIGH : LOW);
+}
+
+int relayForWashType(const String& t) {
+  if (t == "basic")    return 0;
+  if (t == "standard") return 1;
+  if (t == "premium")  return 2;
+  if (t == "ultimate") return 3;
+  return -1;
+}
+
+void pulseRelay(int idx) {
+  Serial.printf("[RELAY] Pulsing relay %d (GPIO %d) for %lu ms\\n", idx + 1, RELAY_PINS[idx], RELAY_PULSE_MS);
+  relayWrite(idx, true);
+  unsigned long start = millis();
+  while (millis() - start < RELAY_PULSE_MS) { esp_task_wdt_reset(); delay(10); }
+  relayWrite(idx, false);
+}
+
+void ensureWiFi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(STATUS_LED, HIGH);
+    wifiBackoff = 1000;
+    return;
+  }
+  digitalWrite(STATUS_LED, LOW);
+  if (millis() < wifiRetryAt) return;
+  Serial.println("[WIFI] Connecting...");
+  WiFi.disconnect();
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  wifiRetryAt = millis() + wifiBackoff;
+  wifiBackoff = min(wifiBackoff * 2, 30000UL);   // back off up to 30 s
+}
+
+void pollBay() {
+  WiFiClientSecure client;
+  client.setInsecure();            // skips certificate check; fine for a read-only status poll
+  HTTPClient http;
+  http.setTimeout(5000);
+
+  String url = String(SUPABASE_URL) + "/rest/v1/wash_bay_status?select=status,current_wash_type,current_code&id=eq." + BAY_ID;
+  if (!http.begin(client, url)) { Serial.println("[HTTP] begin failed"); return; }
+  http.addHeader("apikey", SUPABASE_ANON_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
+
+  int code = http.GET();
+  if (code != 200) {
+    Serial.printf("[HTTP] Error %d\\n", code);
+    http.end();
+    return;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, http.getStream());
+  http.end();
+  if (err || !doc.is<JsonArray>() || doc.size() == 0) {
+    Serial.println("[JSON] No bay row found - check BAY_ID");
+    return;
+  }
+
+  String status   = doc[0]["status"] | "";
+  String washType = doc[0]["current_wash_type"] | "";
+  String washCode = doc[0]["current_code"] | "";
+
+  // New wash = status 'washing' with a wash ID we haven't triggered before
+  if (status == "washing" && washCode.length() > 0 && washCode != lastCode) {
+    int relay = relayForWashType(washType);
+    Serial.printf("[BAY %d] New wash: %s (%s)\\n", BAY_ID, washCode.c_str(), washType.c_str());
+    if (relay >= 0) {
+      pulseRelay(relay);
+    } else {
+      Serial.printf("[BAY %d] Unknown wash type '%s' - no relay\\n", BAY_ID, washType.c_str());
+    }
+    lastCode = washCode;
+    prefs.putString("lastCode", lastCode);   // don't re-trigger after a power cut
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  for (int i = 0; i < 4; i++) {
+    pinMode(RELAY_PINS[i], OUTPUT);
+    relayWrite(i, false);                     // all relays OFF at power-up
+  }
+  pinMode(STATUS_LED, OUTPUT);
+
+  prefs.begin("codepos", false);
+  lastCode = prefs.getString("lastCode", "");
+
+  esp_task_wdt_config_t wdt = { .timeout_ms = WDT_TIMEOUT_S * 1000, .idle_core_mask = 0, .trigger_panic = true };
+  esp_task_wdt_reconfigure(&wdt);
+  esp_task_wdt_add(NULL);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  Serial.printf("GES Code Controller relay - Bay %d\\n", BAY_ID);
+}
+
+void loop() {
+  esp_task_wdt_reset();
+  ensureWiFi();
+  if (WiFi.status() == WL_CONNECTED && millis() - lastPoll >= POLL_MS) {
+    lastPoll = millis();
+    pollBay();
+  }
+  delay(20);
+}
+`;
+
+export interface SketchOptions {
+  siteName: string;
+  bayId: number;
+  wifiSsid?: string;
+  wifiPassword?: string;
+  activeLow?: boolean;
+  pollSeconds?: number;
+}
+
+// Escape text for a C string literal / block comment
+const cStr = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+const cComment = (v: string) => v.replace(/\*\//g, '* /').replace(/[\r\n]+/g, ' ');
+
+export function buildEsp32Sketch(o: SketchOptions): string {
+  const url = import.meta.env.VITE_SUPABASE_URL as string;
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const poll = Math.max(1, Math.round(o.pollSeconds || 1)) * 1000;
+  return TEMPLATE
+    .split('__WIFI_SSID__').join(cStr(o.wifiSsid || 'YOUR_WIFI_NAME'))
+    .split('__WIFI_PASSWORD__').join(cStr(o.wifiPassword || 'YOUR_WIFI_PASSWORD'))
+    .split('__BAY_ID__').join(String(o.bayId))
+    .split('__SITE_NAME__').join(cComment(o.siteName))
+    .split('__ACTIVE_LOW__').join(o.activeLow === false ? 'false' : 'true')
+    .split('__POLL_MS__').join(String(poll))
+    .split('__SUPABASE_URL__').join(url)
+    .split('__SUPABASE_KEY__').join(key);
+}
+
+export function sketchFileName(siteName: string, bayId: number) {
+  const slug = siteName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'site';
+  return `bay${bayId}_${slug}.ino`;
+}
