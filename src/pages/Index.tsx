@@ -220,11 +220,21 @@ const Index = () => {
 
   useEffect(() => {
     const fetchExtras = async () => {
-      const { data } = await supabase.from('wash_extras').select('*').eq('active', true).order('name');
-      if (data) setExtras(data as WashExtra[]);
+      // This site's extras plus any shared ones (no site)
+      let q = (supabase as any).from('wash_extras').select('*').eq('active', true);
+      q = siteId ? q.or(`site_id.eq.${siteId},site_id.is.null`) : q.is('site_id', null);
+      const { data } = await q.order('sort_order').order('name');
+      setExtras((data || []) as WashExtra[]);
+      setSelectedExtras(new Set());
     };
     fetchExtras();
-  }, []);
+  }, [siteId]);
+
+  const toggleExtra = (id: string) => setSelectedExtras(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const extrasTotal = extras.filter((e) => selectedExtras.has(e.id)).reduce((sum, e) => sum + Number(e.price), 0);
   const totalPrice = price + extrasTotal;
@@ -472,6 +482,27 @@ const Index = () => {
                   ))}
                 </div>
               </div>
+
+              {extras.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="section-label pl-1">Extras (optional)</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {extras.map((e) => {
+                      const on = selectedExtras.has(e.id);
+                      return (
+                        <button key={e.id} type="button" onClick={() => toggleExtra(e.id)} aria-pressed={on}
+                          className={`p-3 rounded-xl border text-left transition-all ${on ? 'border-primary/60 bg-primary/10 shadow-md' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-sm text-foreground">{e.name}</span>
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${on ? 'bg-primary border-primary text-primary-foreground' : 'border-border'}`}>{on ? '✓' : ''}</span>
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">+R{Number(e.price).toFixed(2)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <h2 className="section-label pl-1">03 — Client Details</h2>

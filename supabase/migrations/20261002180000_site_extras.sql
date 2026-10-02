@@ -1,0 +1,1 @@
+-- Applied via Supabase MCP (2026-10-02): wash_extras.site_id + sort_order; Vacuum / Tyre Shine / Engine Clean seeded per site (R0); new sites get them too

@@ -20,6 +20,8 @@ interface SiteWash {
   _dirty?: boolean; _new?: boolean;
 }
 
+interface SiteExtra { id: string; site_id: string; name: string; price: number; active: boolean; sort_order: number; _dirty?: boolean; _new?: boolean }
+
 const db = supabase as any;
 const selectCls = 'h-10 rounded-md bg-secondary border border-border px-3 text-sm';
 
@@ -30,16 +32,19 @@ const SiteWashes = () => {
   const { isAdmin, siteId: mySiteId } = useAuth();
   const [site, setSite] = useState<SiteConfig | null>(null);
   const [washes, setWashes] = useState<SiteWash[]>([]);
+  const [extras, setExtras] = useState<SiteExtra[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const canEdit = isAdmin || (!!mySiteId && mySiteId === siteParam);
 
   const load = useCallback(async () => {
-    const [s, w] = await Promise.all([
+    const [s, w, x] = await Promise.all([
       db.from('sites').select('id, name, bay_id, relay_count, pulse_ms, package_relay, vehicle_pricing, busy_input_enabled, package_duration_seconds').eq('id', siteParam).maybeSingle(),
       db.from('site_washes').select('*').eq('site_id', siteParam).order('sort_order').order('created_at'),
+      db.from('wash_extras').select('id, site_id, name, price, active, sort_order').eq('site_id', siteParam).order('sort_order').order('name'),
     ]);
+    setExtras(x.data || []);
     setSite(s.data || null);
     setWashes(w.data || []);
     setLoading(false);
@@ -59,6 +64,22 @@ const SiteWashes = () => {
     }]);
   };
 
+  const updateExtra = (id: string, patch: Partial<SiteExtra>) =>
+    setExtras(prev => prev.map(e => (e.id === id ? { ...e, ...patch, _dirty: true } : e)));
+  const addExtra = () => {
+    if (!site) return;
+    setExtras(prev => [...prev, { id: crypto.randomUUID(), site_id: site.id, name: '', price: 0, active: true, sort_order: prev.length + 1, _dirty: true, _new: true }]);
+  };
+  const removeExtra = async (e: SiteExtra) => {
+    if (!confirm(`Delete extra "${e.name || 'this extra'}"?`)) return;
+    if (!e._new) {
+      const { error } = await db.from('wash_extras').delete().eq('id', e.id);
+      if (error) { toast.error('Failed to delete extra'); return; }
+    }
+    setExtras(prev => prev.filter(x => x.id !== e.id));
+    toast.success('Extra deleted');
+  };
+
   const removeWash = async (w: SiteWash) => {
     if (!confirm(`Delete "${w.name || 'this wash'}"? Codes already sold keep working.`)) return;
     if (!w._new) {
@@ -72,6 +93,7 @@ const SiteWashes = () => {
   const saveAll = async () => {
     if (!site) return;
     if (washes.some(w => !w.name.trim())) { toast.error('Every wash needs a name'); return; }
+    if (extras.some(e => !e.name.trim())) { toast.error('Every extra needs a name'); return; }
     setSaving(true);
     try {
       const relayCount = Math.min(8, Math.max(1, site.relay_count));
@@ -94,6 +116,14 @@ const SiteWashes = () => {
       }));
       if (dirty.length) {
         const { error } = await db.from('site_washes').upsert(dirty);
+        if (error) throw error;
+      }
+      const dirtyExtras = extras.filter(e => e._dirty).map((e, i) => ({
+        id: e.id, site_id: site.id, name: e.name.trim(), price: Number(e.price) || 0,
+        active: e.active, sort_order: e.sort_order || i + 1, updated_at: new Date().toISOString(),
+      }));
+      if (dirtyExtras.length) {
+        const { error } = await db.from('wash_extras').upsert(dirtyExtras);
         if (error) throw error;
       }
       toast.success('Saved');
@@ -245,10 +275,38 @@ const SiteWashes = () => {
               ))}
             </section>
 
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="section-label">Extras ({extras.length})</h2>
+                {canEdit && <Button size="sm" variant="outline" className="gap-1" onClick={addExtra}><Plus className="w-3 h-3" /> Add extra</Button>}
+              </div>
+              <p className="text-xs text-muted-foreground">Add-ons staff can tick on the POS, e.g. vacuum, tyre shine, engine clean. They add to the price and print on the receipt.</p>
+              {extras.length === 0 && <p className="text-sm text-muted-foreground">No extras yet.</p>}
+              {extras.map(e => (
+                <div key={e.id} className={`premium-card p-3 grid grid-cols-[1fr_110px] gap-2 items-center ${e.active ? '' : 'opacity-60'}`}>
+                  <Input placeholder="Extra name, e.g. Vacuum" value={e.name} disabled={!canEdit}
+                    onChange={ev => updateExtra(e.id, { name: ev.target.value })} />
+                  <Input type="number" min={0} step={0.5} aria-label="Extra price in Rand" value={e.price} disabled={!canEdit}
+                    onChange={ev => updateExtra(e.id, { price: Number(ev.target.value) })} />
+                  {canEdit && (
+                    <div className="col-span-2 flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input type="checkbox" checked={e.active} onChange={ev => updateExtra(e.id, { active: ev.target.checked })} />
+                        Show on POS
+                      </label>
+                      <button type="button" onClick={() => removeExtra(e)} className="text-xs text-destructive flex items-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </section>
+
             {canEdit && (
               <div className="sticky bottom-4">
                 <Button className="w-full h-12 gap-2" onClick={saveAll} disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save washes & relays
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save washes, extras & relays
                 </Button>
               </div>
             )}
