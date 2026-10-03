@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download, QrCode, Upload } from 'lucide-react';
-import { buildEsp32Sketch, sketchFileName } from '@/lib/esp32Sketch';
+import { buildEsp32Sketch, sketchFileName, BOARDS, BoardId } from '@/lib/esp32Sketch';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -43,8 +43,9 @@ const Sites = () => {
   const [sketchId, setSketchId] = useState<string | null>(null);
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
-  const [activeLow, setActiveLow] = useState(true);
+  const [activeLow, setActiveLow] = useState(false);   // Waveshare relays switch on HIGH
   const [pollSeconds, setPollSeconds] = useState(3);
+  const [board, setBoard] = useState<BoardId>('waveshare6');
 
   const canManageAll = isAdmin;
   const canEditOwn = isSiteManager && !!siteId;
@@ -113,7 +114,7 @@ const Sites = () => {
   const sketchFor = (site: Site) => buildEsp32Sketch({
     siteName: site.name, bayId: site.bay_id || 0, wifiSsid, wifiPassword, activeLow, pollSeconds,
     relayCount: site.relay_count || 4, pulseMs: site.pulse_ms || 1000, relayMap,
-    useBusyInput: !!site.busy_input_enabled, deviceKey,
+    useBusyInput: !!site.busy_input_enabled, deviceKey, board,
   });
 
   const downloadSketch = (site: Site) => {
@@ -395,6 +396,15 @@ const Sites = () => {
                         <p className="text-xs text-muted-foreground">
                           Relay controller sketch for <strong>{site.name}</strong> (Bay {site.bay_id}). WiFi details are only put in the file, never saved.
                         </p>
+                        <select value={board} aria-label="Relay board"
+                          onChange={e => { const b = e.target.value as BoardId; setBoard(b); setActiveLow(BOARDS[b].activeLow); }}
+                          className="w-full h-10 rounded-md bg-secondary border border-border px-3 text-sm">
+                          {(Object.keys(BOARDS) as BoardId[]).map(id => <option key={id} value={id}>{BOARDS[id].label}</option>)}
+                        </select>
+                        <p className="text-[11px] text-muted-foreground">{BOARDS[board].note}</p>
+                        {(site.relay_count || 4) > BOARDS[board].maxRelays && (
+                          <p className="text-xs font-semibold text-destructive">This site uses {site.relay_count} relays but this board only has {BOARDS[board].maxRelays}. Washes on higher relays will fire relay 1.</p>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <Input placeholder="WiFi name (SSID)" value={wifiSsid} onChange={e => setWifiSsid(e.target.value)} />
                           <Input placeholder="WiFi password" type="password" value={wifiPassword} onChange={e => setWifiPassword(e.target.value)} />
@@ -419,7 +429,7 @@ const Sites = () => {
                           </Button>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          This site uses {site.relay_count || 4} relay(s). Pins: relay 1 = GPIO 26, 2 = 27, 3 = 32, 4 = 33, 5 = 25, 6 = 14, 7 = 13, 8 = 23. Which wash fires which relay is set on Washes & relays and needs no new sketch. Needs the ArduinoJson library and ESP32 board package 3.x.
+                          This site uses {site.relay_count || 4} relay(s). Which wash fires which relay is set on Washes & relays and needs no new sketch. In Arduino IDE choose board "{BOARDS[board].ide}", install the ArduinoJson library, and use ESP32 board package 3.x.
                         </p>
                       </div>
                     )}

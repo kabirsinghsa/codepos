@@ -15,7 +15,8 @@ const TEMPLATE = `/*
   This site uses __RELAY_COUNT__ relay(s):
 __RELAY_MAP__
 
-  Board: ESP32 Dev Module   Libraries: ArduinoJson (v7) by Benoit Blanchon
+  Board: __BOARD_NAME__
+  Arduino IDE board setting: __BOARD_IDE__   Libraries: ArduinoJson (v7) by Benoit Blanchon
 */
 
 #include <WiFi.h>
@@ -33,7 +34,7 @@ const int   BAY_ID = __BAY_ID__;   // __SITE_NAME__ (kiosk link ?site_id=__BAY_I
 
 // Relay output pins (safe ESP32 GPIOs)
 const int RELAY_COUNT = __RELAY_COUNT__;        // relays used at this site (1-8)
-const int RELAY_PINS[8] = { 26, 27, 32, 33, 25, 14, 13, 23 };   // relay 1..8 (change to match your board)
+const int RELAY_PINS[8] = { __RELAY_PINS__ };   // relay 1..8 for this board
 
 // Most cheap relay boards switch ON when the pin goes LOW. Set false if yours is active-high.
 const bool RELAY_ACTIVE_LOW = __ACTIVE_LOW__;
@@ -45,7 +46,7 @@ const unsigned long POLL_MS        = __POLL_MS__;  // how often to check Supabas
 // Wire the PLC output through an optocoupler or interposing relay contact to BUSY_PIN and GND.
 // While the machine is busy the kiosk refuses new codes, so a second car can't start a wash.
 const bool USE_BUSY_INPUT  = __USE_BUSY__;
-const int  BUSY_PIN        = 4;      // input with internal pull-up
+const int  BUSY_PIN        = __BUSY_PIN__;      // input with internal pull-up
 const bool BUSY_ACTIVE_LOW = true;   // true = contact CLOSED (pin to GND) means busy
 const char* DEVICE_KEY     = "__DEVICE_KEY__";   // this site's secret key - keep private
 // ============================================================
@@ -55,7 +56,7 @@ const char* SUPABASE_URL = "__SUPABASE_URL__";
 const char* SUPABASE_ANON_KEY =
   "__SUPABASE_KEY__";
 
-const int STATUS_LED = 2;          // on-board LED: on = WiFi connected
+const int STATUS_LED = __STATUS_LED__;          // on-board LED: on = WiFi connected (-1 = none)
 const int WDT_TIMEOUT_S = 30;      // reboot if the loop ever hangs
 
 Preferences prefs;
@@ -86,11 +87,11 @@ void pulseRelay(int idx, unsigned long ms) {
 
 void ensureWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(STATUS_LED, HIGH);
+    if (STATUS_LED >= 0) digitalWrite(STATUS_LED, HIGH);
     wifiBackoff = 1000;
     return;
   }
-  digitalWrite(STATUS_LED, LOW);
+  if (STATUS_LED >= 0) digitalWrite(STATUS_LED, LOW);
   if (millis() < wifiRetryAt) return;
   Serial.println("[WIFI] Connecting...");
   WiFi.disconnect();
@@ -191,7 +192,7 @@ void setup() {
     pinMode(RELAY_PINS[i], OUTPUT);
     relayWrite(i, false);                     // all relays OFF at power-up
   }
-  pinMode(STATUS_LED, OUTPUT);
+  if (STATUS_LED >= 0) pinMode(STATUS_LED, OUTPUT);
   if (USE_BUSY_INPUT) pinMode(BUSY_PIN, INPUT_PULLUP);
 
   prefs.begin("codepos", false);
@@ -230,7 +231,28 @@ export interface SketchOptions {
   relayMap?: string[];   // e.g. ["Relay 1: Quick Wash, Full Wash", ...]
   useBusyInput?: boolean;
   deviceKey?: string;
+  board?: BoardId;
 }
+
+export type BoardId = 'generic' | 'waveshare6';
+
+// Pin maps per supported relay board
+export const BOARDS: Record<BoardId, {
+  label: string; ide: string; pins: number[]; maxRelays: number; statusLed: number; busyPin: number; activeLow: boolean; note: string;
+}> = {
+  generic: {
+    label: 'ESP32 relay board / ESP32 Dev + relay module',
+    ide: 'ESP32 Dev Module',
+    pins: [26, 27, 32, 33, 25, 14, 13, 23], maxRelays: 8, statusLed: 2, busyPin: 4, activeLow: true,
+    note: 'Relays on GPIO 26, 27, 32, 33, 25, 14, 13, 23. Busy input on GPIO 4.',
+  },
+  waveshare6: {
+    label: 'Waveshare ESP32-S3-Relay-6CH (Micro Robotics W26756)',
+    ide: 'ESP32S3 Dev Module',
+    pins: [1, 2, 41, 42, 45, 46, 1, 1], maxRelays: 6, statusLed: -1, busyPin: 4, activeLow: false,
+    note: 'Relays CH1-CH6 = GPIO 1, 2, 41, 42, 45, 46 (fixed on the board). Power 7-36 V DC or USB-C. Busy input: GPIO 4 on the Pico header.',
+  },
+};
 
 // Escape text for a C string literal / block comment
 const cStr = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -251,7 +273,12 @@ export function buildEsp32Sketch(o: SketchOptions): string {
     .split('__SUPABASE_KEY__').join(key)
     .split('__USE_BUSY__').join(o.useBusyInput ? 'true' : 'false')
     .split('__DEVICE_KEY__').join(cStr(o.deviceKey || ''))
-    .split('__RELAY_COUNT__').join(String(Math.min(8, Math.max(1, o.relayCount || 4))))
+    .split('__BOARD_NAME__').join(cComment(BOARDS[o.board || 'generic'].label))
+    .split('__BOARD_IDE__').join(cComment(BOARDS[o.board || 'generic'].ide))
+    .split('__RELAY_PINS__').join(BOARDS[o.board || 'generic'].pins.join(', '))
+    .split('__BUSY_PIN__').join(String(BOARDS[o.board || 'generic'].busyPin))
+    .split('__STATUS_LED__').join(String(BOARDS[o.board || 'generic'].statusLed))
+    .split('__RELAY_COUNT__').join(String(Math.min(BOARDS[o.board || 'generic'].maxRelays, Math.max(1, o.relayCount || 4))))
     .split('__PULSE_MS__').join(String(o.pulseMs || 1000))
     .split('__RELAY_MAP__').join((o.relayMap && o.relayMap.length ? o.relayMap : ['(no washes set up yet)'])
       .map(l => '    ' + cComment(l)).join('\n'));
