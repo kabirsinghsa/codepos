@@ -1,0 +1,1 @@
+-- Applied via Supabase MCP (2026-10-02): sites.logo_url; theme-assets bucket limited to images up to 2 MB

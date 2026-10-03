@@ -31,6 +31,7 @@ const Kiosk = () => {
   const [businessName, setBusinessName] = useState('GES CODE CONTROLLER');
 
   const [dbSiteName, setDbSiteName] = useState<string | null>(null);
+  const [kioskLogo, setKioskLogo] = useState('');
   const [siteMissing, setSiteMissing] = useState(false);
 
   const siteConfig = useMemo(() => {
@@ -52,9 +53,9 @@ const Kiosk = () => {
   useEffect(() => {
     const n = parseInt(bayParam || '');
     if (!n) return;
-    (supabase as any).from('sites').select('name, busy_input_enabled').eq('bay_id', n).maybeSingle()
+    (supabase as any).from('sites').select('name, busy_input_enabled, logo_url').eq('bay_id', n).maybeSingle()
       .then(({ data }: any) => {
-        if (data?.name) { setDbSiteName(data.name); setSiteMissing(false); setBusyInputEnabled(!!data.busy_input_enabled); }
+        if (data?.name) { setDbSiteName(data.name); setSiteMissing(false); setBusyInputEnabled(!!data.busy_input_enabled); setKioskLogo(data.logo_url || ''); }
         else setSiteMissing(true);
       });
   }, [bayParam]);
@@ -281,6 +282,7 @@ const Kiosk = () => {
   return (
     <div className={`min-h-screen bg-gradient-to-b ${currentConfig.bg} flex flex-col items-center justify-center p-8 select-none`}>
       <div className="text-center space-y-6 max-w-2xl w-full">
+        {kioskLogo && <img src={kioskLogo} alt="" className="h-20 max-w-[60%] mx-auto object-contain" />}
         <h1 className="text-3xl font-bold text-primary tracking-wider uppercase">{dbSiteName || businessName}</h1>
         {siteMissing && (
           <p className="text-sm font-bold text-destructive">No site uses bay {siteConfig.id}. Check this kiosk link on the Sites page.</p>

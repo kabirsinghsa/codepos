@@ -61,6 +61,7 @@ const Index = () => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [customerPhone, setCustomerPhone] = useState('');
   const [price, setPrice] = useState<number>(0);
+  const [siteLogo, setSiteLogo] = useState('');
   // Per-site wash menu (each wash mapped to an ESP32 relay)
   const [siteWashes, setSiteWashes] = useState<any[]>([]);
   const [vehiclePricing, setVehiclePricing] = useState(true);
@@ -114,10 +115,11 @@ const Index = () => {
   useEffect(() => {
     const fetchSiteName = async () => {
       if (siteId) {
-        const { data } = await supabase.from('sites').select('name').eq('id', siteId).single();
-        if (data) setSiteName(data.name);
+        const { data } = await (supabase as any).from('sites').select('name, logo_url').eq('id', siteId).single();
+        if (data) { setSiteName(data.name); setSiteLogo(data.logo_url || ''); }
       } else {
         setSiteName('');
+        setSiteLogo('');
       }
     };
     fetchSiteName();
@@ -345,9 +347,13 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl gradient-primary text-white shadow-lg">
-                <Droplets className="w-5 h-5" />
-              </div>
+              {siteLogo ? (
+                <img src={siteLogo} alt="Site logo" className="w-11 h-11 rounded-xl object-contain bg-white border border-border shadow-sm" />
+              ) : (
+                <div className="p-2.5 rounded-xl gradient-primary text-white shadow-lg">
+                  <Droplets className="w-5 h-5" />
+                </div>
+              )}
               <div>
                 <h1 className="text-lg font-bold uppercase tracking-tight">{siteName || businessName}</h1>
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Command Center</p>

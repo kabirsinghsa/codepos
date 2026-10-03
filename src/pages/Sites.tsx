@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download, QrCode } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download, QrCode, Upload } from 'lucide-react';
 import { buildEsp32Sketch, sketchFileName } from '@/lib/esp32Sketch';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,6 +22,7 @@ interface Site {
   relay_count?: number;
   pulse_ms?: number;
   busy_input_enabled?: boolean;
+  logo_url?: string | null;
 }
 
 interface SiteLink { site_id: string; linked_site_id: string; }
@@ -135,6 +136,36 @@ const Sites = () => {
     if (site.busy_input_enabled && !deviceKey) { toast.error('Device key not loaded yet. Only admins can download a sketch with the busy input.'); return; }
     try { await navigator.clipboard.writeText(sketchFor(site)); toast.success('Sketch copied'); }
     catch { toast.error('Could not copy. Use Download instead.'); }
+  };
+
+  const [uploadingLogo, setUploadingLogo] = useState<string | null>(null);
+  const uploadLogo = async (site: Site, file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please choose an image'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('Logo must be under 2 MB'); return; }
+    setUploadingLogo(site.id);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `site-logos/${site.id}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('theme-assets').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('theme-assets').getPublicUrl(path);
+      const { error } = await (supabase as any).from('sites').update({ logo_url: pub.publicUrl }).eq('id', site.id);
+      if (error) throw error;
+      setSites(prev => prev.map(x => (x.id === site.id ? { ...x, logo_url: pub.publicUrl } : x)));
+      toast.success('Logo updated');
+    } catch (e) {
+      console.error(e);
+      toast.error('Logo upload failed');
+    } finally {
+      setUploadingLogo(null);
+    }
+  };
+  const removeLogo = async (site: Site) => {
+    const { error } = await (supabase as any).from('sites').update({ logo_url: null }).eq('id', site.id);
+    if (error) { toast.error('Failed to remove logo'); return; }
+    setSites(prev => prev.map(x => (x.id === site.id ? { ...x, logo_url: null } : x)));
+    toast.success('Logo removed');
   };
 
   const kioskUrl = (bay: number | null) => `${window.location.origin}/kiosk?site_id=${bay ?? ''}`;
@@ -281,12 +312,32 @@ const Sites = () => {
               {sites.map((site) => (
                 <Card key={site.id} className={!site.active ? 'opacity-60' : ''}>
                   <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-foreground">{site.name}</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-3 min-w-0">
+                        <span className="w-12 h-12 rounded-xl border border-border bg-white flex items-center justify-center overflow-hidden shrink-0">
+                          {site.logo_url
+                            ? <img src={site.logo_url} alt={`${site.name} logo`} className="w-full h-full object-contain" />
+                            : <MapPin className="w-5 h-5 text-muted-foreground" />}
+                        </span>
+                        <span className="text-lg font-bold text-foreground truncate">{site.name}</span>
+                      </span>
                       <Badge variant={site.active ? 'default' : 'secondary'}>
                         {site.active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
+                    {(canManageAll || site.id === siteId) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-border cursor-pointer hover:bg-secondary ${uploadingLogo === site.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                          {uploadingLogo === site.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                          {site.logo_url ? 'Change logo' : 'Upload logo'}
+                          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
+                            onChange={e => { uploadLogo(site, e.target.files?.[0]); e.target.value = ''; }} />
+                        </label>
+                        {site.logo_url && (
+                          <button type="button" onClick={() => removeLogo(site)} className="text-xs text-destructive">Remove logo</button>
+                        )}
+                      </div>
+                    )}
                     <div className="text-sm text-muted-foreground space-y-1">
                       {site.address && <p>📍 {site.address}</p>}
                       {site.phone && <p>📞 {site.phone}</p>}
