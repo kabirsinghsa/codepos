@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ArrowLeft, MapPin, Trash2, Pencil, Link2, Copy, Cpu, Download, QrCode, Upload } from 'lucide-react';
-import { buildEsp32Sketch, sketchFileName, BOARDS, BoardId } from '@/lib/esp32Sketch';
+import { buildEsp32Sketch, sketchFileName, BOARDS, BoardId, buildKioskSketch, kioskSketchFileName } from '@/lib/esp32Sketch';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -130,6 +130,21 @@ const Sites = () => {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success('Sketch downloaded');
+  };
+
+  const downloadKioskSketch = (site: Site) => {
+    if (!site.bay_id) { toast.error('This site has no bay number yet'); return; }
+    const text = buildKioskSketch({ siteName: site.name, bayId: site.bay_id, wifiSsid, wifiPassword });
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = kioskSketchFileName(site.name, site.bay_id);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success('Kiosk unit sketch downloaded');
   };
 
   const copySketch = async (site: Site) => {
@@ -426,6 +441,9 @@ const Sites = () => {
                           </Button>
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => copySketch(site)}>
                             <Copy className="w-3 h-3" /> Copy code
+                          </Button>
+                          <Button size="sm" variant="secondary" className="gap-1" onClick={() => downloadKioskSketch(site)}>
+                            <QrCode className="w-3 h-3" /> Kiosk unit (scanner + LCD)
                           </Button>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
