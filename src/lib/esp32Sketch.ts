@@ -158,17 +158,18 @@ bool reportBusy(bool busy) {
   client.setInsecure();
   HTTPClient http;
   http.setTimeout(5000);
-  String url = String(SUPABASE_URL) + "/functions/v1/bay-status";
+  String url = String(SUPABASE_URL) + "/rest/v1/rpc/report_bay_busy";
   if (!http.begin(client, url)) return false;
   http.addHeader("Content-Type", "application/json");
   http.addHeader("apikey", SUPABASE_ANON_KEY);
   http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
-  http.addHeader("x-device-key", DEVICE_KEY);
-  String body = String("{\\"bay_id\\":") + BAY_ID + ",\\"busy\\":" + (busy ? "true" : "false") + "}";
+  String body = String("{\\"p_bay\\":") + BAY_ID + ",\\"p_key\\":\\"" + DEVICE_KEY + "\\",\\"p_busy\\":" + (busy ? "true" : "false") + "}";
   int code = http.POST(body);
+  String resp = http.getString();
   http.end();
   Serial.printf("[BUSY] Reported %s -> HTTP %d\\n", busy ? "BUSY" : "READY", code);
-  return code == 200;
+  if (code == 200 && resp.indexOf("false") >= 0) Serial.println("[BUSY] Rejected - check BAY_ID / DEVICE_KEY");
+  return code == 200 && resp.indexOf("true") >= 0;
 }
 
 void handleBusyInput() {

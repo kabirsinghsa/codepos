@@ -43,7 +43,7 @@ const Sites = () => {
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
   const [activeLow, setActiveLow] = useState(true);
-  const [pollSeconds, setPollSeconds] = useState(1);
+  const [pollSeconds, setPollSeconds] = useState(3);
 
   const canManageAll = isAdmin;
   const canEditOwn = isSiteManager && !!siteId;
@@ -354,8 +354,8 @@ const Sites = () => {
                           </select>
                           <select value={pollSeconds} onChange={e => setPollSeconds(Number(e.target.value))}
                             className="h-10 rounded-md bg-secondary border border-border px-3 text-sm" aria-label="Check interval">
-                            <option value={1}>Check every 1 second (fastest)</option>
-                            <option value={3}>Check every 3 seconds (less data)</option>
+                            <option value={1}>Check every 1 second (fastest, most data)</option>
+                            <option value={3}>Check every 3 seconds (recommended)</option>
                             <option value={5}>Check every 5 seconds (least data)</option>
                           </select>
                         </div>

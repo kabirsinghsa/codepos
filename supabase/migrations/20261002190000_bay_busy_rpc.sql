@@ -1,0 +1,1 @@
+-- Applied via Supabase MCP (2026-10-02): report_bay_busy() RPC (device-key checked, writes throttled to 30 s) replaces bay-status edge function for ESP32 reports; indexes on created_at for reports
