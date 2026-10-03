@@ -257,6 +257,55 @@ const Kiosk = () => {
     return () => { supabase.removeChannel(channel); };
   }, [siteConfig]);
 
+  // ---- Screensaver: after a while with nothing happening, show a dark, slowly moving screen.
+  // The QR camera keeps running underneath, so customers can just hold up their code.
+  const saverSeconds = Math.max(15, parseInt(searchParams.get('saver') || '') || 60);
+  const [saverOn, setSaverOn] = useState(false);
+  const [saverPos, setSaverPos] = useState({ x: 0, y: 0 });
+  const lastActivity = useRef(Date.now());
+  const wakeSaver = useCallback(() => { lastActivity.current = Date.now(); setSaverOn(false); }, []);
+
+  useEffect(() => {
+    const onActivity = () => wakeSaver();
+    window.addEventListener('pointerdown', onActivity);
+    window.addEventListener('keydown', onActivity);
+    return () => { window.removeEventListener('pointerdown', onActivity); window.removeEventListener('keydown', onActivity); };
+  }, [wakeSaver]);
+
+  // Anything happening at the bay counts as activity
+  useEffect(() => { wakeSaver(); }, [bayState.status, validating, bayLocked, wakeSaver]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!saverOn && bayState.status === 'idle' && !validating && Date.now() - lastActivity.current > saverSeconds * 1000) {
+        setMode('code');          // make sure the QR camera is the one running
+        setSaverOn(true);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [saverOn, bayState.status, validating, saverSeconds]);
+
+  // Move the text every 8 s so nothing burns into the screen
+  useEffect(() => {
+    if (!saverOn) return;
+    const move = () => setSaverPos({ x: Math.round((Math.random() - 0.5) * 50), y: Math.round((Math.random() - 0.5) * 60) });
+    move();
+    const t = setInterval(move, 8000);
+    return () => clearInterval(t);
+  }, [saverOn]);
+
+  // Keep the tablet screen from switching off (supported in Chrome on Android)
+  useEffect(() => {
+    let lock: any = null;
+    const request = async () => {
+      try { lock = await (navigator as any).wakeLock?.request('screen'); } catch { /* not supported */ }
+    };
+    request();
+    const onVisible = () => { if (document.visibilityState === 'visible') request(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { document.removeEventListener('visibilitychange', onVisible); try { lock?.release(); } catch { /* ignore */ } };
+  }, []);
+
   if (!siteConfig) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -398,6 +447,17 @@ const Kiosk = () => {
         <p className="text-xl text-muted-foreground font-medium">{currentConfig.subtitle}</p>
       </div>
       <Footer />
+      {saverOn && (
+        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center cursor-pointer" onPointerDown={wakeSaver} role="button" aria-label="Tap to start">
+          <div className="text-center space-y-5 transition-transform duration-[2000ms] ease-in-out"
+            style={{ transform: `translate(${saverPos.x}vw, ${saverPos.y}vh)` }}>
+            {kioskLogo && <img src={kioskLogo} alt="" className="h-28 max-w-[60vw] mx-auto object-contain opacity-90" />}
+            <p className="text-4xl font-black uppercase tracking-wider text-white/90">{dbSiteName || businessName}</p>
+            <p className="text-xl font-semibold text-white/70">Hold your QR code up to the camera</p>
+            <p className="text-sm text-white/40 animate-pulse">or tap the screen to start</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
