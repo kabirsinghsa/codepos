@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// PayFast signs with PHP urlencode(): spaces as "+", and ! ' ( ) * ~ encoded too
+const pfEncode = (v: string) =>
+  encodeURIComponent(v.trim())
+    .replace(/[!'()*~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+    .replace(/%20/g, '+')
+
 async function md5(input: string): Promise<string> {
   const data = new TextEncoder().encode(input)
   const hashBuffer = await crypto.subtle.digest('MD5', data)
@@ -51,16 +57,22 @@ Deno.serve(async (req) => {
     settings?.forEach((s: any) => { settingsMap[s.key] = s.value })
 
     // Verify signature
-    const passphrase = settingsMap['payfast_passphrase'] || ''
+    // Payment must be for OUR merchant account
+    if (settingsMap['payfast_merchant_id'] && pfData['merchant_id'] && pfData['merchant_id'] !== settingsMap['payfast_merchant_id'].trim()) {
+      console.error('Merchant ID mismatch')
+      return new Response('MERCHANT_MISMATCH', { status: 400 })
+    }
+
+    const passphrase = (settingsMap['payfast_passphrase'] || '').trim()
     const receivedSignature = pfData['signature']
 
     const signatureParams = Object.entries(pfData)
       .filter(([k]) => k !== 'signature')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v.trim()).replace(/%20/g, '+')}`)
+      .map(([k, v]) => `${k}=${pfEncode(v)}`)
       .join('&')
 
     const signatureInput = passphrase
-      ? `${signatureParams}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`
+      ? `${signatureParams}&passphrase=${pfEncode(passphrase)}`
       : signatureParams
 
     const calculatedSignature = await md5(signatureInput)

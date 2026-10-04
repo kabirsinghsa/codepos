@@ -1,0 +1,1 @@
+-- Applied via Supabase MCP (2026-10-04): payfast_* settings readable/changeable by admins only

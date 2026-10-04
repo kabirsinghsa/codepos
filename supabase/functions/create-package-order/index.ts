@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// PayFast signs with PHP urlencode(): spaces as "+", and ! ' ( ) * ~ encoded too
+const pfEncode = (v: string) =>
+  encodeURIComponent(v.trim())
+    .replace(/[!'()*~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+    .replace(/%20/g, '+')
+
 async function md5(input: string): Promise<string> {
   const data = new TextEncoder().encode(input)
   const hashBuffer = await crypto.subtle.digest('MD5', data)
@@ -49,6 +55,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    const { data: siteRow } = await supabase.from('sites').select('id').eq('id', site_id).eq('active', true).maybeSingle()
+    if (!siteRow) {
+      return new Response(JSON.stringify({ error: 'Selected site not found' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // SECURITY: price is calculated here from business_settings, never trusted from the browser
     const ALLOWED_TYPES = ['ultimate_exterior', 'ultimate_interior']
@@ -139,11 +150,11 @@ Deno.serve(async (req) => {
       const passphrase = settingsMap['payfast_passphrase'] || ''
       const paramString = Object.entries(pfData)
         .filter(([_, v]) => v !== '')
-        .map(([k, v]) => `${k}=${encodeURIComponent(v.trim()).replace(/%20/g, '+')}`)
+        .map(([k, v]) => `${k}=${pfEncode(v)}`)
         .join('&')
 
       const signatureInput = passphrase
-        ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`
+        ? `${paramString}&passphrase=${pfEncode(passphrase)}`
         : paramString
 
       const signature = await md5(signatureInput)

@@ -4,7 +4,7 @@ import { WashTypeCard } from '@/components/WashTypeCard';
 import { CodeDisplay } from '@/components/CodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, QrCode, Save, Printer } from 'lucide-react';
+import { Zap, Plus, Settings, Loader2, BarChart3, LogOut, Users, DollarSign, Droplets, Car, ShoppingCart, Package, MapPin, ClipboardList, QrCode, Save, Printer, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -422,6 +422,7 @@ const Index = () => {
               <Button type="button" variant="outline" onClick={() => navigate('/pos-products')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Package className="w-4 h-4 text-primary" /> Catalog</Button>
               <Button type="button" variant="outline" onClick={() => navigate('/sites')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><MapPin className="w-4 h-4 text-primary" /> Sites</Button>
               <Button type="button" variant="outline" onClick={() => navigate('/package-orders')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><ClipboardList className="w-4 h-4 text-primary" /> Orders</Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/payments')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><CreditCard className="w-4 h-4 text-primary" /> Payments</Button>
               <Button type="button" variant="outline" onClick={() => navigate('/theme')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0"><Settings className="w-4 h-4 text-primary" /> Theme</Button>
               <Button type="button" variant="outline" onClick={() => navigate('/install')} className="h-16 flex flex-col gap-1 rounded-xl premium-card text-[10px] font-semibold uppercase tracking-wider border-0 !border-primary/30"><QrCode className="w-4 h-4 text-primary" /> Deploy</Button>
             </div>
