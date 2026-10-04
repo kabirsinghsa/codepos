@@ -62,6 +62,7 @@ const Index = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [price, setPrice] = useState<number>(0);
   const [siteLogo, setSiteLogo] = useState('');
+  const [shopEnabled, setShopEnabled] = useState(true);
   // Per-site wash menu (each wash mapped to an ESP32 relay)
   const [siteWashes, setSiteWashes] = useState<any[]>([]);
   const [vehiclePricing, setVehiclePricing] = useState(true);
@@ -115,8 +116,8 @@ const Index = () => {
   useEffect(() => {
     const fetchSiteName = async () => {
       if (siteId) {
-        const { data } = await (supabase as any).from('sites').select('name, logo_url').eq('id', siteId).single();
-        if (data) { setSiteName(data.name); setSiteLogo(data.logo_url || ''); }
+        const { data } = await (supabase as any).from('sites').select('name, logo_url, shop_enabled').eq('id', siteId).single();
+        if (data) { setSiteName(data.name); setSiteLogo(data.logo_url || ''); setShopEnabled(data.shop_enabled !== false); }
       } else {
         setSiteName('');
         setSiteLogo('');
@@ -361,9 +362,11 @@ const Index = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/pos')} className="p-2.5 rounded-xl bg-secondary border border-border text-primary hover:bg-primary/10 transition-all" title="Shop POS">
-                <ShoppingCart className="w-4 h-4" />
-              </button>
+              {shopEnabled && (
+                <button onClick={() => navigate('/pos')} className="p-2.5 rounded-xl bg-secondary border border-border text-primary hover:bg-primary/10 transition-all" title="Shop POS">
+                  <ShoppingCart className="w-4 h-4" />
+                </button>
+              )}
               <button onClick={() => setShowSettings(!showSettings)} className={`p-2.5 rounded-xl border transition-all ${showSettings ? 'gradient-primary text-white border-primary/50' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>
                 <Settings className="w-4 h-4" />
               </button>

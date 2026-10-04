@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ interface Site {
   pulse_ms?: number;
   busy_input_enabled?: boolean;
   logo_url?: string | null;
+  shop_enabled?: boolean;
 }
 
 interface SiteLink { site_id: string; linked_site_id: string; }
@@ -177,6 +179,13 @@ const Sites = () => {
       setUploadingLogo(null);
     }
   };
+  const toggleShop = async (site: Site, on: boolean) => {
+    const { error } = await (supabase as any).from('sites').update({ shop_enabled: on }).eq('id', site.id);
+    if (error) { toast.error('Failed to update shop setting'); return; }
+    setSites(prev => prev.map(x => (x.id === site.id ? { ...x, shop_enabled: on } : x)));
+    toast.success(on ? `Shop switched ON for ${site.name}` : `Shop switched OFF for ${site.name}: car washes only`);
+  };
+
   const removeLogo = async (site: Site) => {
     const { error } = await (supabase as any).from('sites').update({ logo_url: null }).eq('id', site.id);
     if (error) { toast.error('Failed to remove logo'); return; }
@@ -353,6 +362,17 @@ const Sites = () => {
                           <button type="button" onClick={() => removeLogo(site)} className="text-xs text-destructive">Remove logo</button>
                         )}
                       </div>
+                    )}
+                    {canManageAll && (
+                      <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 cursor-pointer">
+                        <span>
+                          <span className="block text-sm font-semibold">Shop POS</span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {site.shop_enabled !== false ? 'On: staff can sell shop products' : 'Off: this site sells car washes only'}
+                          </span>
+                        </span>
+                        <Switch checked={site.shop_enabled !== false} onCheckedChange={(v: boolean) => toggleShop(site, v)} aria-label="Shop POS on or off" />
+                      </label>
                     )}
                     <div className="text-sm text-muted-foreground space-y-1">
                       {site.address && <p>📍 {site.address}</p>}

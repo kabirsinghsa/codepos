@@ -34,6 +34,7 @@ const Pos = () => {
   const [businessPhone, setBusinessPhone] = useState('');
   const [receiptFooter, setReceiptFooter] = useState('Thank you for your support!');
   const [siteName, setSiteName] = useState('');
+  const [shopOff, setShopOff] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<{ items: BasketItem[]; total: number; date: Date; txId: string } | null>(null);
 
   useEffect(() => {
@@ -54,7 +55,8 @@ const Pos = () => {
         }
 
         if (userSiteId) {
-          const { data: siteData } = await supabase.from('sites').select('name').eq('id', userSiteId).single();
+          const { data: siteData } = await (supabase as any).from('sites').select('name, shop_enabled').eq('id', userSiteId).single();
+          if (siteData && siteData.shop_enabled === false) setShopOff(true);
           if (siteData) setSiteName(siteData.name);
         }
       } catch (err) {
@@ -235,6 +237,17 @@ const Pos = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (shopOff) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <Store className="w-10 h-10 text-muted-foreground" />
+        <p className="text-lg font-bold">The shop is turned off for {siteName || 'this site'}</p>
+        <p className="text-sm text-muted-foreground">This site only sells car washes. An admin can switch the shop on under Sites.</p>
+        <Button onClick={() => navigate('/')}>Back</Button>
       </div>
     );
   }

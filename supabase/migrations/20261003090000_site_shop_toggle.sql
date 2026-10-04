@@ -1,0 +1,1 @@
+-- Applied via Supabase MCP (2026-10-03): sites.shop_enabled (per-site Shop POS on/off)
