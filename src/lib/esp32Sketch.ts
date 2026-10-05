@@ -294,7 +294,8 @@ const KIOSK_TEMPLATE = `/*
   GES Code Controller - Kiosk Unit (ESP32 + GM65 QR scanner + 20x4 LCD)
   Site: __SITE_NAME__   Bay: __BAY_ID__
   ---------------------------------------------------------------
-  Customer holds their QR slip / phone under the GM65. The ESP32 sends the
+  Customer holds their QR slip / phone under the GM65.
+  No scanner yet? Type the 6-digit code in the Serial Monitor (115200 baud, "Newline"). The ESP32 sends the
   code to GES Code Controller, which checks it and tells this site's relay
   unit which relay to pulse. The LCD shows the result.
 
@@ -504,6 +505,13 @@ void loop() {
   if (scanBuf.length() && millis() - lastByte > 150 && !Scanner.available()) {
     handleScan(scanBuf);
     scanBuf = "";
+  }
+  // TEST WITHOUT A SCANNER: type a 6-digit code in Arduino's Serial Monitor (115200, "Newline") and press Enter
+  static String serialBuf;
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\\r' || c == '\\n') { if (serialBuf.length()) { Serial.printf("[TEST] Code typed: %s\\n", serialBuf.c_str()); handleScan(serialBuf); serialBuf = ""; } }
+    else if (serialBuf.length() < 64) serialBuf += c;
   }
   if (showUntil && millis() > showUntil) { showUntil = 0; showIdle(); }
   if (resetAt && millis() > resetAt) { resetAt = 0; resetBayLater(); }
